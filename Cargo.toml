@@ -1,0 +1,11 @@
+[package]
+name = "crimson-rs"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "crimson_rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.27.2", features = ["abi3-py312"] }
