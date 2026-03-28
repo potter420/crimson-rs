@@ -70,102 +70,110 @@ impl TrieStringBuffer {
     }
 }
 
-// ── Trie Buffer Builder ──────────────────────────────────────────────────
+// ── Trie Buffer Builder (radix trie) ─────────────────────────────────────
 
 /// Build a trie-encoded string buffer from a list of strings.
 ///
 /// Returns `(buffer, offsets)` where `offsets[i]` is the trie offset for `strings[i]`.
-/// Strings are split on `/` to share common path prefixes.
+///
+/// Uses byte-level prefix sharing (radix/Patricia trie) to match the game's
+/// native format. For example, `"gamedata/binary__"` and `"gamedata/binarygimmickchart__"`
+/// share the prefix `"gamedata/binary"`, then split into `"__"` and `"gimmickchart__"`.
 pub fn build_trie_buffer(strings: &[&str]) -> (Vec<u8>, Vec<i32>) {
     if strings.is_empty() {
         return (Vec::new(), Vec::new());
     }
 
-    // Build trie tree in memory
-    let mut root = BuildTrieNode {
+    // Build radix trie in memory
+    let mut root = RadixNode {
         fragment: String::new(),
         children: Vec::new(),
         terminal_indices: Vec::new(),
     };
 
     for (i, s) in strings.iter().enumerate() {
-        let segments = split_path_segments(s);
-        insert_into_trie(&mut root, &segments, i);
+        radix_insert(&mut root, s, i);
     }
 
-    // Serialize trie depth-first
+    // Serialize depth-first
     let mut buffer = Vec::new();
     let mut offsets = vec![-1i32; strings.len()];
-    serialize_trie_node(&root, -1, &mut buffer, &mut offsets);
+    serialize_radix_node(&root, -1, &mut buffer, &mut offsets);
 
     (buffer, offsets)
 }
 
-struct BuildTrieNode {
+struct RadixNode {
     fragment: String,
-    children: Vec<BuildTrieNode>,
+    children: Vec<RadixNode>,
     terminal_indices: Vec<usize>,
 }
 
-/// Split a path into segments, keeping `/` attached to the preceding segment.
-/// e.g., "a/b/c" -> ["a/", "b/", "c"]
-/// Empty string -> [""]
-fn split_path_segments(s: &str) -> Vec<String> {
-    if s.is_empty() {
-        return vec![String::new()];
-    }
-
-    let mut segments = Vec::new();
-    let mut start = 0;
-    let bytes = s.as_bytes();
-
-    for i in 0..bytes.len() {
-        if bytes[i] == b'/' {
-            segments.push(s[start..=i].to_string());
-            start = i + 1;
-        }
-    }
-    if start < bytes.len() {
-        segments.push(s[start..].to_string());
-    } else if start == bytes.len() {
-        // Trailing slash: the last segment is empty, but we already captured the "/"
-        // with the preceding segment. Nothing more to add.
-    }
-
-    segments
+/// Find the length of the common byte prefix between two strings.
+fn common_prefix_len(a: &str, b: &str) -> usize {
+    a.bytes().zip(b.bytes()).take_while(|(x, y)| x == y).count()
 }
 
-fn insert_into_trie(node: &mut BuildTrieNode, segments: &[String], string_index: usize) {
-    if segments.is_empty() {
+/// Insert a string into the radix trie.
+fn radix_insert(node: &mut RadixNode, remaining: &str, string_index: usize) {
+    if remaining.is_empty() {
         node.terminal_indices.push(string_index);
         return;
     }
 
-    // Look for existing child with matching fragment
-    for child in &mut node.children {
-        if child.fragment == segments[0] {
-            insert_into_trie(child, &segments[1..], string_index);
+    // Look for a child that shares a common prefix
+    for i in 0..node.children.len() {
+        let prefix_len = common_prefix_len(&node.children[i].fragment, remaining);
+        if prefix_len == 0 {
+            continue;
+        }
+
+        let child_frag_len = node.children[i].fragment.len();
+
+        if prefix_len == child_frag_len {
+            // Full match of child fragment — descend into it
+            let suffix = &remaining[prefix_len..];
+            radix_insert(&mut node.children[i], suffix, string_index);
             return;
         }
+
+        // Partial match — split the child node
+        let shared = node.children[i].fragment[..prefix_len].to_string();
+        let child_tail = node.children[i].fragment[prefix_len..].to_string();
+        let new_tail = &remaining[prefix_len..];
+
+        // Take the existing child out, give it the tail fragment
+        let mut old_child = node.children.swap_remove(i);
+        old_child.fragment = child_tail;
+
+        // Create the split node with the shared prefix
+        let mut split_node = RadixNode {
+            fragment: shared,
+            children: vec![old_child],
+            terminal_indices: Vec::new(),
+        };
+
+        // Insert the new string's remainder
+        radix_insert(&mut split_node, new_tail, string_index);
+        node.children.push(split_node);
+        return;
     }
 
-    // Create new child
-    let mut new_child = BuildTrieNode {
-        fragment: segments[0].clone(),
+    // No matching child — create a new leaf
+    node.children.push(RadixNode {
+        fragment: remaining.to_string(),
         children: Vec::new(),
-        terminal_indices: Vec::new(),
-    };
-    insert_into_trie(&mut new_child, &segments[1..], string_index);
-    node.children.push(new_child);
+        terminal_indices: vec![string_index],
+    });
 }
 
-fn serialize_trie_node(
-    node: &BuildTrieNode,
+fn serialize_radix_node(
+    node: &RadixNode,
     parent_offset: i32,
     buffer: &mut Vec<u8>,
     offsets: &mut [i32],
 ) {
-    // For the root node (empty fragment), don't write an entry — just recurse children
+    // For the root node (empty fragment), don't write an entry
     if node.fragment.is_empty() && parent_offset == -1 {
         // Root terminals (empty strings)
         for &idx in &node.terminal_indices {
@@ -174,14 +182,13 @@ fn serialize_trie_node(
             buffer.push(0); // zero-length string
             offsets[idx] = my_offset;
         }
-        // Recurse children with parent_offset = -1
         for child in &node.children {
-            serialize_trie_node(child, -1, buffer, offsets);
+            serialize_radix_node(child, -1, buffer, offsets);
         }
         return;
     }
 
-    // Write this node's entry
+    // Write this node's entry: i32 parent_offset + u8 length + [u8; length] data
     let my_offset = buffer.len() as i32;
     buffer.extend_from_slice(&parent_offset.to_le_bytes());
     let frag_bytes = node.fragment.as_bytes();
@@ -195,7 +202,7 @@ fn serialize_trie_node(
 
     // Recurse children
     for child in &node.children {
-        serialize_trie_node(child, my_offset, buffer, offsets);
+        serialize_radix_node(child, my_offset, buffer, offsets);
     }
 }
 
@@ -285,6 +292,43 @@ mod tests {
         for (i, s) in strings.iter().enumerate() {
             assert_eq!(trie.get_string(offsets[i]).unwrap(), *s);
         }
+    }
+
+    #[test]
+    fn test_build_radix_trie_game_compatible() {
+        // Verify the radix trie matches the game's format: byte-level prefix sharing
+        let strings = [
+            "gamedata",
+            "gamedata/binary__",
+            "gamedata/binary__/client",
+            "gamedata/binary__/client/bin",
+            "gamedata/binary__/misc",
+            "gamedata/binarygimmickchart__",
+        ];
+        let (buf, offsets) = build_trie_buffer(&strings);
+        let mut trie = TrieStringBuffer::new(buf.clone());
+
+        // All strings should roundtrip correctly
+        for (i, s) in strings.iter().enumerate() {
+            assert_eq!(trie.get_string(offsets[i]).unwrap(), *s, "string[{}]", i);
+        }
+
+        // Verify structure: "gamedata/binary" should be shared between
+        // "binary__" and "binarygimmickchart__"
+        // Entry 0 should be "gamedata" with parent=-1
+        let parent0 = i32::from_le_bytes(buf[0..4].try_into().unwrap());
+        let len0 = buf[4] as usize;
+        let data0 = std::str::from_utf8(&buf[5..5 + len0]).unwrap();
+        assert_eq!(parent0, -1);
+        assert_eq!(data0, "gamedata");
+
+        // Entry 1 should be "/binary" with parent=0
+        let off1 = 5 + len0;
+        let parent1 = i32::from_le_bytes(buf[off1..off1 + 4].try_into().unwrap());
+        let len1 = buf[off1 + 4] as usize;
+        let data1 = std::str::from_utf8(&buf[off1 + 5..off1 + 5 + len1]).unwrap();
+        assert_eq!(parent1, 0);
+        assert_eq!(data1, "/binary");
     }
 
     #[test]

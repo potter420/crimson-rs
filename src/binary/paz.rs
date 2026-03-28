@@ -425,6 +425,59 @@ mod tests {
     }
 
     #[test]
+    fn test_pack_group_builder_deep_paths() {
+        // Matches the game's 0008 pack group structure
+        let dir = make_tempdir();
+        let mut builder = PackGroupBuilder::new(
+            dir.path(),
+            Compression::None,
+            CryptoType::None,
+            [0, 0, 0],
+            1_000_000,
+        );
+
+        builder.add_file("gamedata", "f1.bin", b"d1").unwrap();
+        builder.add_file("gamedata/binary__", "f2.bin", b"d2").unwrap();
+        builder.add_file("gamedata/binary__/client", "f3.bin", b"d3").unwrap();
+        builder.add_file("gamedata/binary__/client/bin", "f4.bin", b"d4").unwrap();
+        builder.add_file("gamedata/binary__/misc", "f5.bin", b"d5").unwrap();
+        builder.add_file("gamedata/binary__/misc/bin", "f6.bin", b"d6").unwrap();
+        builder.add_file("gamedata/binarygimmickchart__", "f7.bin", b"d7").unwrap();
+        builder.add_file("gamedata/binarygimmickchart__/bin", "f8.bin", b"d8").unwrap();
+
+        let pamt_bytes = builder.finish().unwrap();
+        let pamt = PackMeta::parse(&pamt_bytes, None).unwrap();
+
+        // All 8 directories should be present and resolved correctly
+        assert_eq!(pamt.directories.len(), 8);
+        let dir_names: Vec<&str> = pamt.directories.iter().map(|d| d.path.as_str()).collect();
+        assert!(dir_names.contains(&"gamedata"));
+        assert!(dir_names.contains(&"gamedata/binary__"));
+        assert!(dir_names.contains(&"gamedata/binary__/client"));
+        assert!(dir_names.contains(&"gamedata/binary__/client/bin"));
+        assert!(dir_names.contains(&"gamedata/binary__/misc"));
+        assert!(dir_names.contains(&"gamedata/binary__/misc/bin"));
+        assert!(dir_names.contains(&"gamedata/binarygimmickchart__"));
+        assert!(dir_names.contains(&"gamedata/binarygimmickchart__/bin"));
+
+        // Verify the radix trie structure: "gamedata" at root, "/binary" shared
+        let buf = &pamt.dir_names_buffer;
+        let parent0 = i32::from_le_bytes(buf[0..4].try_into().unwrap());
+        let len0 = buf[4] as usize;
+        let data0 = std::str::from_utf8(&buf[5..5 + len0]).unwrap();
+        assert_eq!(parent0, -1);
+        assert_eq!(data0, "gamedata");
+
+        // Second entry should be "/binary" (shared prefix of "binary__" and "binarygimmickchart__")
+        let off1 = 5 + len0;
+        let parent1 = i32::from_le_bytes(buf[off1..off1 + 4].try_into().unwrap());
+        let len1 = buf[off1 + 4] as usize;
+        let data1 = std::str::from_utf8(&buf[off1 + 5..off1 + 5 + len1]).unwrap();
+        assert_eq!(parent1, 0);
+        assert_eq!(data1, "/binary");
+    }
+
+    #[test]
     fn test_pack_group_builder_with_compression() {
         let dir = make_tempdir();
         let mut builder = PackGroupBuilder::new(
