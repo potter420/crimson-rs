@@ -1383,7 +1383,7 @@ fn parse_crypto(crypto: u8) -> PyResult<crate::binary::pamt::CryptoType> {
 ///     builder.add_file("textures", "icon.dds", raw_bytes)
 ///     builder.add_file_from_path("models", "mesh.obj", "/path/to/mesh.obj")
 ///     pamt_bytes = builder.finish()  # writes .paz + 0.pamt to output_dir
-#[pyclass]
+#[pyclass(name = "PackGroupBuilder")]
 pub struct PyPackGroupBuilder {
     inner: Option<crate::binary::paz::PackGroupBuilder>,
 }
