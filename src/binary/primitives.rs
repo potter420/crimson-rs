@@ -77,6 +77,21 @@ impl BinaryWrite for i8 {
     }
 }
 
+impl<'a> BinaryRead<'a> for i32 {
+    fn read_from(data: &'a [u8], offset: &mut usize) -> io::Result<Self> {
+        check_remaining(data, *offset, 4)?;
+        let v = i32::from_le_bytes(data[*offset..*offset + 4].try_into().unwrap());
+        *offset += 4;
+        Ok(v)
+    }
+}
+
+impl BinaryWrite for i32 {
+    fn write_to(&self, w: &mut dyn Write) -> io::Result<()> {
+        w.write_all(&self.to_le_bytes())
+    }
+}
+
 impl<'a> BinaryRead<'a> for i64 {
     fn read_from(data: &'a [u8], offset: &mut usize) -> io::Result<Self> {
         check_remaining(data, *offset, 8)?;

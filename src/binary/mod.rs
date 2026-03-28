@@ -1,6 +1,10 @@
 mod primitives;
 mod types;
 mod arrays;
+pub(crate) mod trie;
+pub(crate) mod papgt;
+pub(crate) mod pamt;
+pub(crate) mod paz;
 
 pub use types::*;
 
