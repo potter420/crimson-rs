@@ -138,10 +138,12 @@ impl PackGroupTreeMeta {
         })
     }
 
-    /// Add a new entry to this PAPGT.
+    /// Add or update an entry in this PAPGT (upsert), placed at the front.
     ///
-    /// The group name is appended to the group_names_buffer,
-    /// and a new entry is created with the given parameters.
+    /// Mod entries are inserted at position 0 so they take priority over
+    /// original game entries (matches other mod loaders' behavior).
+    /// If an entry with the same `group_name` already exists, it is updated
+    /// and moved to the front.
     /// Call `to_bytes()` afterwards to get the serialized form with recalculated checksum.
     pub fn add_entry(
         &mut self,
@@ -150,17 +152,30 @@ impl PackGroupTreeMeta {
         is_optional: u8,
         language: u16,
     ) {
-        let group_name_offset = self.group_names_buffer.len() as u32;
-        self.group_names_buffer.extend_from_slice(group_name.as_bytes());
-        self.group_names_buffer.push(0); // null terminator
+        // Remove existing entry with the same group name (if any)
+        self.entries.retain(|e| e.group_name != group_name);
 
-        self.entries.push(ResolvedEntry {
+        // Prepend the group name to the front of the names buffer
+        let name_bytes = group_name.as_bytes();
+        let insert_len = name_bytes.len() + 1; // +1 for null terminator
+        let mut new_buffer = Vec::with_capacity(insert_len + self.group_names_buffer.len());
+        new_buffer.extend_from_slice(name_bytes);
+        new_buffer.push(0); // null terminator
+        new_buffer.extend_from_slice(&self.group_names_buffer);
+        self.group_names_buffer = new_buffer;
+
+        // Shift all existing entries' group_name_offset forward
+        for entry in &mut self.entries {
+            entry.entry.group_name_offset += insert_len as u32;
+        }
+
+        self.entries.insert(0, ResolvedEntry {
             group_name: group_name.to_string(),
             entry: PackGroupTreeMetaEntry {
                 is_optional,
                 language: LanguageType(language),
                 always_zero: 0,
-                group_name_offset,
+                group_name_offset: 0, // at the front of the buffer
                 pack_meta_checksum,
             },
         });

@@ -1,6 +1,176 @@
 # crimson_rs Python API Reference
 
-## Functions
+See also: [Archive Format](archive-format.md) for binary format details and mod loading explanation.
+
+## Enums
+
+```python
+from crimson_rs import Compression, Crypto, Language
+
+Compression.NONE      # 0
+Compression.LZ4       # 2
+Compression.ZLIB      # 3
+
+Crypto.NONE           # 0
+Crypto.ICE            # 1
+Crypto.AES            # 2
+Crypto.CHACHA20       # 3
+
+Language.ALL          # 0x3FFF (all 14 languages)
+Language.KOR          # 0x0001
+Language.ENG          # 0x0002
+Language.JPN          # 0x0004
+Language.CHT          # 0x0008
+Language.GER          # 0x0010
+Language.FRA          # 0x0020
+Language.SPA          # 0x0040
+Language.POR          # 0x0080
+Language.RUS          # 0x0100
+Language.TUR          # 0x0200
+Language.THA          # 0x0400
+Language.IND          # 0x0800
+Language.CHS          # 0x1000
+Language.ARA          # 0x2000
+```
+
+---
+
+## High-Level: Mod Packing
+
+### `pack_mod(...)`
+
+Packs a mod folder into a new pack group and updates the PAPGT index. This is the main entrypoint for modders.
+
+```python
+from crimson_rs import Compression, Crypto, Language
+from crimson_rs.pack_mod import pack_mod
+
+pack_mod(
+    game_dir="/path/to/Crimson Desert",
+    mod_folder="/path/to/modified/files",
+    output_dir="/path/to/output",
+    group_name="0036",
+    compression=Compression.LZ4,    # default
+    crypto=Crypto.NONE,             # default
+    language=Language.ALL,           # default
+)
+```
+
+**Parameters:**
+- `game_dir` — Path to the Crimson Desert installation (to read original `meta/0.papgt`)
+- `mod_folder` — Directory containing mod files in game directory structure
+- `output_dir` — Where to write the packed output (paz + pamt + papgt)
+- `group_name` — Pack group name (e.g. `"0036"`)
+- `compression` — `Compression.LZ4` (default), `.ZLIB`, or `.NONE`
+- `crypto` — `Crypto.NONE` (default), `.ICE`, `.AES`, or `.CHACHA20`
+- `encrypt_info` — 3 bytes of encryption key material (default: `b"\x00\x00\x00"`)
+- `max_chunk_size` — Max bytes per `.paz` file (default: 500MB)
+- `is_optional` — Whether the group is optional (default: `False`)
+- `language` — Language flags (default: `Language.ALL`)
+
+**Output structure:**
+```
+output_dir/
+├── {group_name}/
+│   ├── 0.paz
+│   ├── 0.pamt
+│   └── ...
+└── meta/
+    └── 0.papgt    # Updated with mod entry at front
+```
+
+---
+
+## Low-Level: PAPGT
+
+### `parse_papgt_file(path: str) -> PapgtData`
+
+Parse a PAPGT file (pack group tree meta — master index).
+
+### `parse_papgt_bytes(data: bytes) -> PapgtData`
+
+Parse PAPGT from raw bytes.
+
+### `write_papgt_file(data: PapgtData, path: str) -> None`
+
+Serialize PAPGT data and write to file.
+
+### `serialize_papgt(data: PapgtData) -> bytes`
+
+Serialize PAPGT data to raw bytes.
+
+### `add_papgt_entry(papgt_data, group_name, pack_meta_checksum, is_optional, language) -> PapgtData`
+
+Upsert a pack group entry. Inserts at front for mod priority (see [Mod Loading](archive-format.md#mod-loading-overlay-approach)). If `group_name` already exists, updates it in place and moves to front.
+
+```python
+papgt = crimson_rs.parse_papgt_file("meta/0.papgt")
+updated = crimson_rs.add_papgt_entry(papgt, "0036", checksum, 0, 0x3FFF)
+crimson_rs.write_papgt_file(updated, "output/meta/0.papgt")
+```
+
+---
+
+## Low-Level: PAMT
+
+### `parse_pamt_file(path: str) -> PamtData`
+
+Parse a PAMT file (pack meta — VFS listing for a single group).
+
+### `parse_pamt_bytes(data: bytes) -> PamtData`
+
+Parse PAMT from raw bytes.
+
+### `write_pamt_file(data: PamtData, path: str) -> None`
+
+Serialize PAMT data and write to file.
+
+### `serialize_pamt(data: PamtData) -> bytes`
+
+Serialize PAMT data to raw bytes.
+
+---
+
+## Low-Level: PackGroupBuilder
+
+Streaming builder that creates `.paz` chunks and `0.pamt` index on disk.
+
+```python
+builder = crimson_rs.PackGroupBuilder(
+    output_dir="/path/to/0036",
+    compression=int(Compression.LZ4),
+    crypto=int(Crypto.NONE),
+    encrypt_info=b"\x00\x00\x00",
+    max_chunk_size=500_000_000,
+)
+builder.add_file("gamedata/binary__/client/bin", "iteminfo.pabgb", raw_bytes)
+builder.add_file_from_path("textures", "icon.dds", "/path/to/icon.dds")
+pamt_bytes = builder.finish()  # writes .paz chunks + 0.pamt, returns PAMT bytes
+```
+
+---
+
+## Compression
+
+### `compress_data(data: bytes, compression: int) -> bytes`
+
+Compress data. `compression`: 0=None, 2=LZ4, 3=Zlib.
+
+### `decompress_data(data: bytes, compression: int, uncompressed_size: int) -> bytes`
+
+Decompress data.
+
+---
+
+## Checksum
+
+### `calculate_checksum(data: bytes) -> int`
+
+Compute Jenkins hashlittle2 checksum (seed `0xDEBA1DCD`).
+
+---
+
+## ItemInfo (pabgb)
 
 ### `parse_file(path: str) -> list[dict]`
 

@@ -70,139 +70,214 @@ impl TrieStringBuffer {
     }
 }
 
-// ── Trie Buffer Builder (radix trie) ─────────────────────────────────────
+// ── Trie Buffer Builder ──────────────────────────────────────────────────
 
 /// Build a trie-encoded string buffer from a list of strings.
 ///
 /// Returns `(buffer, offsets)` where `offsets[i]` is the trie offset for `strings[i]`.
 ///
-/// Uses byte-level prefix sharing (radix/Patricia trie) to match the game's
-/// native format. For example, `"gamedata/binary__"` and `"gamedata/binarygimmickchart__"`
-/// share the prefix `"gamedata/binary"`, then split into `"__"` and `"gimmickchart__"`.
+/// Matches the game's native format:
+/// 1. Split paths on `/` into directory segments
+/// 2. Non-root segments get `/` prepended
+/// 3. Siblings at each level are radix-compressed (byte-level prefix sharing)
+///
+/// For example, `"gamedata/binary__"` and `"gamedata/binarygimmickchart__"`:
+/// - Root segment `"gamedata"` is shared
+/// - Children `"/binary__"` and `"/binarygimmickchart__"` share `"/binary"`
+/// - Split into: `"/binary"` → `"__"` and `"gimmickchart__"`
 pub fn build_trie_buffer(strings: &[&str]) -> (Vec<u8>, Vec<i32>) {
     if strings.is_empty() {
         return (Vec::new(), Vec::new());
     }
 
-    // Build radix trie in memory
-    let mut root = RadixNode {
-        fragment: String::new(),
+    // Phase 1: Build segment-level trie (split on "/")
+    let mut seg_root = SegNode {
         children: Vec::new(),
         terminal_indices: Vec::new(),
     };
 
     for (i, s) in strings.iter().enumerate() {
-        radix_insert(&mut root, s, i);
+        let segments: Vec<&str> = if s.is_empty() {
+            vec![]
+        } else {
+            s.split('/').collect()
+        };
+        seg_insert(&mut seg_root, &segments, i);
     }
 
-    // Serialize depth-first
+    // Phase 2: Serialize with radix compression among siblings
     let mut buffer = Vec::new();
     let mut offsets = vec![-1i32; strings.len()];
-    serialize_radix_node(&root, -1, &mut buffer, &mut offsets);
+
+    // Handle empty-string terminals at root
+    for &idx in &seg_root.terminal_indices {
+        let my_offset = buffer.len() as i32;
+        buffer.extend_from_slice(&(-1i32).to_le_bytes());
+        buffer.push(0);
+        offsets[idx] = my_offset;
+    }
+
+    // Emit root-level children (no "/" prefix)
+    emit_seg_children(&seg_root.children, -1, true, &mut buffer, &mut offsets);
 
     (buffer, offsets)
 }
 
-struct RadixNode {
-    fragment: String,
-    children: Vec<RadixNode>,
+// ── Segment trie (phase 1) ───────────────────────────────────────────────
+
+struct SegNode {
+    children: Vec<(String, SegNode)>, // (segment_name, child)
     terminal_indices: Vec<usize>,
 }
 
-/// Find the length of the common byte prefix between two strings.
-fn common_prefix_len(a: &str, b: &str) -> usize {
-    a.bytes().zip(b.bytes()).take_while(|(x, y)| x == y).count()
-}
-
-/// Insert a string into the radix trie.
-fn radix_insert(node: &mut RadixNode, remaining: &str, string_index: usize) {
-    if remaining.is_empty() {
+fn seg_insert(node: &mut SegNode, segments: &[&str], string_index: usize) {
+    if segments.is_empty() {
         node.terminal_indices.push(string_index);
         return;
     }
 
-    // Look for a child that shares a common prefix
+    for (name, child) in &mut node.children {
+        if name == segments[0] {
+            seg_insert(child, &segments[1..], string_index);
+            return;
+        }
+    }
+
+    let mut new_child = SegNode {
+        children: Vec::new(),
+        terminal_indices: Vec::new(),
+    };
+    seg_insert(&mut new_child, &segments[1..], string_index);
+    node.children.push((segments[0].to_string(), new_child));
+}
+
+// ── Sibling radix compression + serialization (phase 2) ─────────────────
+
+/// A node in the sibling radix trie.
+/// Each node either completes a segment (has `seg_idx`) or is an
+/// intermediate shared-prefix node.
+struct SibRadix {
+    fragment: String,
+    children: Vec<SibRadix>,
+    /// Index into the parent SegNode's children, if this completes a segment.
+    seg_idx: Option<usize>,
+}
+
+fn common_prefix_len(a: &str, b: &str) -> usize {
+    a.bytes().zip(b.bytes()).take_while(|(x, y)| x == y).count()
+}
+
+fn sib_radix_insert(node: &mut SibRadix, remaining: &str, seg_idx: usize) {
+    if remaining.is_empty() {
+        node.seg_idx = Some(seg_idx);
+        return;
+    }
+
     for i in 0..node.children.len() {
         let prefix_len = common_prefix_len(&node.children[i].fragment, remaining);
         if prefix_len == 0 {
             continue;
         }
 
-        let child_frag_len = node.children[i].fragment.len();
-
-        if prefix_len == child_frag_len {
-            // Full match of child fragment — descend into it
-            let suffix = &remaining[prefix_len..];
-            radix_insert(&mut node.children[i], suffix, string_index);
+        if prefix_len == node.children[i].fragment.len() {
+            sib_radix_insert(&mut node.children[i], &remaining[prefix_len..], seg_idx);
             return;
         }
 
-        // Partial match — split the child node
+        // Partial match — split
         let shared = node.children[i].fragment[..prefix_len].to_string();
         let child_tail = node.children[i].fragment[prefix_len..].to_string();
         let new_tail = &remaining[prefix_len..];
 
-        // Take the existing child out, give it the tail fragment
         let mut old_child = node.children.swap_remove(i);
         old_child.fragment = child_tail;
 
-        // Create the split node with the shared prefix
-        let mut split_node = RadixNode {
+        let mut split = SibRadix {
             fragment: shared,
             children: vec![old_child],
-            terminal_indices: Vec::new(),
+            seg_idx: None,
         };
-
-        // Insert the new string's remainder
-        radix_insert(&mut split_node, new_tail, string_index);
-        node.children.push(split_node);
+        sib_radix_insert(&mut split, new_tail, seg_idx);
+        node.children.push(split);
         return;
     }
 
-    // No matching child — create a new leaf
-    node.children.push(RadixNode {
+    node.children.push(SibRadix {
         fragment: remaining.to_string(),
-        children: Vec::new(),
-        terminal_indices: vec![string_index],
+        children: vec![],
+        seg_idx: Some(seg_idx),
     });
 }
 
-fn serialize_radix_node(
-    node: &RadixNode,
+/// Build a sibling radix trie from segment children and serialize to buffer.
+fn emit_seg_children(
+    seg_children: &[(String, SegNode)],
     parent_offset: i32,
+    is_root_level: bool,
     buffer: &mut Vec<u8>,
     offsets: &mut [i32],
 ) {
-    // For the root node (empty fragment), don't write an entry
-    if node.fragment.is_empty() && parent_offset == -1 {
-        // Root terminals (empty strings)
-        for &idx in &node.terminal_indices {
-            let my_offset = buffer.len() as i32;
-            buffer.extend_from_slice(&(-1i32).to_le_bytes());
-            buffer.push(0); // zero-length string
-            offsets[idx] = my_offset;
-        }
+    if seg_children.is_empty() {
+        return;
+    }
+
+    // Build radix trie from sibling fragments
+    let mut radix_root = SibRadix {
+        fragment: String::new(),
+        children: Vec::new(),
+        seg_idx: None,
+    };
+
+    for (ci, (seg_name, _)) in seg_children.iter().enumerate() {
+        let fragment = if is_root_level {
+            seg_name.clone()
+        } else {
+            format!("/{seg_name}")
+        };
+        sib_radix_insert(&mut radix_root, &fragment, ci);
+    }
+
+    // Serialize the radix trie depth-first
+    emit_sib_radix(&radix_root, parent_offset, seg_children, buffer, offsets);
+}
+
+fn emit_sib_radix(
+    node: &SibRadix,
+    parent_offset: i32,
+    seg_children: &[(String, SegNode)],
+    buffer: &mut Vec<u8>,
+    offsets: &mut [i32],
+) {
+    // Virtual root — just recurse
+    if node.fragment.is_empty() {
         for child in &node.children {
-            serialize_radix_node(child, -1, buffer, offsets);
+            emit_sib_radix(child, parent_offset, seg_children, buffer, offsets);
         }
         return;
     }
 
-    // Write this node's entry: i32 parent_offset + u8 length + [u8; length] data
+    // Write this node's entry
     let my_offset = buffer.len() as i32;
     buffer.extend_from_slice(&parent_offset.to_le_bytes());
     let frag_bytes = node.fragment.as_bytes();
     buffer.push(frag_bytes.len() as u8);
     buffer.extend_from_slice(frag_bytes);
 
-    // Record offset for any strings that terminate here
-    for &idx in &node.terminal_indices {
-        offsets[idx] = my_offset;
+    // If this completes a segment, record terminals and recurse into subtree
+    if let Some(ci) = node.seg_idx {
+        let seg_node = &seg_children[ci].1;
+
+        for &idx in &seg_node.terminal_indices {
+            offsets[idx] = my_offset;
+        }
+
+        // Emit this segment's children (next directory level)
+        emit_seg_children(&seg_node.children, my_offset, false, buffer, offsets);
     }
 
-    // Recurse children
+    // Emit radix continuations (sibling prefix sharing)
     for child in &node.children {
-        serialize_radix_node(child, my_offset, buffer, offsets);
+        emit_sib_radix(child, my_offset, seg_children, buffer, offsets);
     }
 }
 

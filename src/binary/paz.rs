@@ -311,10 +311,10 @@ impl PackGroupBuilder {
             header: PackMetaHeader {
                 checksum: 0,
                 count: pamt_chunks.len() as u16,
-                unknown0: 0,
+                unknown0: 0, // seen in real files, always the same, maybe a version or magic?
                 encrypt_info: PackEncryptInfo {
-                    unknown0: 0,
-                    encrypt_info: self.encrypt_info,
+                    unknown0: 50,
+                    encrypt_info: [2, 14, 97],
                 },
             },
             chunks: pamt_chunks,
