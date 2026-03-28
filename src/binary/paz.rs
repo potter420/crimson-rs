@@ -329,6 +329,63 @@ impl PackGroupBuilder {
     }
 }
 
+// ── File extraction from existing archives ───────────────────────────────
+
+/// Extract a single file from a pack group archive.
+///
+/// Reads the compressed/encrypted data from the `.paz` chunk file,
+/// decrypts if needed, then decompresses.
+///
+/// - `group_dir`: path to the group folder (e.g., `game_dir/0008`)
+/// - `file`: the resolved file entry from PAMT
+/// - `dir_path`: full directory path (for ChaCha20 nonce derivation)
+/// - `encrypt_info`: 3-byte encryption info from the PAMT header
+pub fn extract_file(
+    group_dir: &Path,
+    file: &super::pamt::ResolvedFile,
+    dir_path: &str,
+    encrypt_info: &[u8; 3],
+) -> io::Result<Vec<u8>> {
+    use std::io::Read;
+
+    let paz_path = group_dir.join(format!("{}.paz", file.file.chunk_id));
+    let mut fh = std::fs::File::open(&paz_path)
+        .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", paz_path.display(), e)))?;
+
+    // Seek to the file's offset within the chunk
+    std::io::Seek::seek(&mut fh, std::io::SeekFrom::Start(file.file.chunk_offset as u64))?;
+
+    // Read the compressed/encrypted data
+    let mut raw = vec![0u8; file.file.compressed_size as usize];
+    fh.read_exact(&mut raw)?;
+
+    // Decrypt if needed
+    let decrypted = match file.file.crypto {
+        CryptoType::ChaCha20 => {
+            let full_path = if dir_path.is_empty() {
+                file.name.clone()
+            } else {
+                format!("{}/{}", dir_path, file.name)
+            };
+            chacha20::decrypt_pack_entry(&raw, encrypt_info, &full_path)
+        }
+        CryptoType::None => raw,
+        other => return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            format!("crypto {:?} not supported for extraction", other),
+        )),
+    };
+
+    // Decompress (partial-compression files not yet supported)
+    if file.file.is_partial {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "partial compression extraction not yet implemented",
+        ));
+    }
+    decompress(&decrypted, file.file.compression, file.file.uncompressed_size as usize)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

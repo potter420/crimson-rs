@@ -26,7 +26,7 @@ pip install crimson_rs-0.1.0-cp312-abi3-win_amd64.whl
 import crimson_rs
 
 # Parse all items from a binary file
-items = crimson_rs.parse_file("iteminfo_decompressed.pabgb")
+items = crimson_rs.parse_iteminfo_from_file("iteminfo_decompressed.pabgb")
 print(f"Loaded {len(items)} items")
 
 # Each item is a plain dict with all fields accessible
@@ -54,13 +54,13 @@ item["max_stack_count"] = 999
 item["item_name"]["default"] = "Custom Name"
 
 # Write modified items back to a file (byte-perfect roundtrip)
-crimson_rs.write_file(items, "output.pabgb")
+crimson_rs.write_iteminfo_to_file(items, "output.pabgb")
 
 # Or get raw bytes
-data = crimson_rs.serialize_items(items)
+data = crimson_rs.serialize_iteminfo(items)
 
 # Parse from bytes
-items = crimson_rs.parse_bytes(data)
+items = crimson_rs.parse_iteminfo_from_bytes(data)
 ```
 
 ### Filtering and Searching
@@ -68,7 +68,7 @@ items = crimson_rs.parse_bytes(data)
 ```python
 import crimson_rs
 
-items = crimson_rs.parse_file("iteminfo_decompressed.pabgb")
+items = crimson_rs.parse_iteminfo_from_file("iteminfo_decompressed.pabgb")
 
 # Find items by type
 weapons = [i for i in items if i["item_type"] == 1]

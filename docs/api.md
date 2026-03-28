@@ -170,14 +170,31 @@ Compute Jenkins hashlittle2 checksum (seed `0xDEBA1DCD`).
 
 ---
 
+## File Extraction
+
+### `extract_file(game_dir: str, group_name: str, dir_path: str, file_name: str) -> bytes`
+
+Extract a single file from a pack group archive. Reads the PAMT index, locates the file in the `.paz` chunk, decrypts and decompresses it.
+
+```python
+data = crimson_rs.extract_file(
+    "/path/to/Crimson Desert",
+    "0008",
+    "gamedata/binary__/client/bin",
+    "iteminfo.pabgb",
+)
+```
+
+---
+
 ## ItemInfo (pabgb)
 
-### `parse_file(path: str) -> list[dict]`
+### `parse_iteminfo_from_file(path: str) -> list[dict]`
 
 Parse all items from a binary file.
 
 ```python
-items = crimson_rs.parse_file("iteminfo_decompressed.pabgb")
+items = crimson_rs.parse_iteminfo_from_file("iteminfo_decompressed.pabgb")
 ```
 
 **Parameters:**
@@ -189,13 +206,13 @@ items = crimson_rs.parse_file("iteminfo_decompressed.pabgb")
 
 ---
 
-### `parse_bytes(data: bytes) -> list[dict]`
+### `parse_iteminfo_from_bytes(data: bytes) -> list[dict]`
 
 Parse all items from raw bytes.
 
 ```python
 with open("iteminfo_decompressed.pabgb", "rb") as f:
-    items = crimson_rs.parse_bytes(f.read())
+    items = crimson_rs.parse_iteminfo_from_bytes(f.read())
 ```
 
 **Parameters:**
@@ -207,28 +224,28 @@ with open("iteminfo_decompressed.pabgb", "rb") as f:
 
 ---
 
-### `write_file(items: list[dict], path: str) -> None`
+### `write_iteminfo_to_file(items: list[dict], path: str) -> None`
 
 Serialize items and write to a file.
 
 ```python
-crimson_rs.write_file(items, "output.pabgb")
+crimson_rs.write_iteminfo_to_file(items, "output.pabgb")
 ```
 
 **Parameters:**
-- `items` - List of item dicts (same structure as returned by `parse_file`).
+- `items` - List of item dicts (same structure as returned by `parse_iteminfo_from_file`).
 - `path` - Output file path.
 
 **Raises:** `IOError` on write failure, `KeyError` if a required field is missing, `ValueError` on invalid data.
 
 ---
 
-### `serialize_items(items: list[dict]) -> bytes`
+### `serialize_iteminfo(items: list[dict]) -> bytes`
 
 Serialize items to raw bytes.
 
 ```python
-data = crimson_rs.serialize_items(items)
+data = crimson_rs.serialize_iteminfo(items)
 ```
 
 **Parameters:**

@@ -977,18 +977,18 @@ fn wr_item(w: &mut Vec<u8>, obj: &Bound<'_, PyAny>) -> PyResult<()> {
 // ── Module functions ───────────────────────────────────────────────────────
 
 #[pyfunction]
-pub fn parse_file(py: Python<'_>, path: &str) -> PyResult<Py<PyAny>> {
+pub fn parse_iteminfo_from_file(py: Python<'_>, path: &str) -> PyResult<Py<PyAny>> {
     let data = std::fs::read(path)
         .map_err(|e| PyIOError::new_err(e.to_string()))?;
-    parse_bytes_inner(py, &data)
+    parse_iteminfo_from_bytes_inner(py, &data)
 }
 
 #[pyfunction]
-pub fn parse_bytes(py: Python<'_>, data: &[u8]) -> PyResult<Py<PyAny>> {
-    parse_bytes_inner(py, data)
+pub fn parse_iteminfo_from_bytes(py: Python<'_>, data: &[u8]) -> PyResult<Py<PyAny>> {
+    parse_iteminfo_from_bytes_inner(py, data)
 }
 
-pub fn parse_bytes_inner(py: Python<'_>, data: &[u8]) -> PyResult<Py<PyAny>> {
+pub fn parse_iteminfo_from_bytes_inner(py: Python<'_>, data: &[u8]) -> PyResult<Py<PyAny>> {
     let mut offset = 0;
     let mut items = Vec::new();
     while offset < data.len() {
@@ -1002,19 +1002,19 @@ pub fn parse_bytes_inner(py: Python<'_>, data: &[u8]) -> PyResult<Py<PyAny>> {
 }
 
 #[pyfunction]
-pub fn write_file(items: &Bound<'_, PyList>, path: &str) -> PyResult<()> {
-    let data = serialize_impl(items)?;
+pub fn write_iteminfo_to_file(items: &Bound<'_, PyList>, path: &str) -> PyResult<()> {
+    let data = serialize_iteminfo_impl(items)?;
     std::fs::write(path, data)
         .map_err(|e| PyIOError::new_err(e.to_string()))
 }
 
 #[pyfunction]
-pub fn serialize_items(py: Python<'_>, items: &Bound<'_, PyList>) -> PyResult<Py<PyAny>> {
-    let data = serialize_impl(items)?;
+pub fn serialize_iteminfo(py: Python<'_>, items: &Bound<'_, PyList>) -> PyResult<Py<PyAny>> {
+    let data = serialize_iteminfo_impl(items)?;
     Ok(PyBytes::new(py, &data).into_any().unbind())
 }
 
-pub fn serialize_impl(items: &Bound<'_, PyList>) -> PyResult<Vec<u8>> {
+pub fn serialize_iteminfo_impl(items: &Bound<'_, PyList>) -> PyResult<Vec<u8>> {
     let mut buf = Vec::new();
     for item in items.iter() {
         wr_item(&mut buf, &item)?;
@@ -1476,13 +1476,58 @@ pub fn add_papgt_entry(
     Ok(to_py_papgt(py, &new_papgt)?.into_any().unbind())
 }
 
+// ── File Extraction ───────────────────────────────────────────────────────
+
+/// Extract a single file from a pack group archive to bytes.
+///
+/// Given a game directory, group name, directory path, and file name,
+/// finds the file in the PAMT index and reads/decrypts/decompresses it.
+#[pyfunction]
+pub fn extract_file(
+    py: Python<'_>,
+    game_dir: &str,
+    group_name: &str,
+    dir_path: &str,
+    file_name: &str,
+) -> PyResult<Py<PyAny>> {
+    use std::path::Path;
+    use crate::binary::paz;
+
+    let group_dir = Path::new(game_dir).join(group_name);
+    let pamt_path = group_dir.join("0.pamt");
+
+    let pamt_data = std::fs::read(&pamt_path)
+        .map_err(|e| PyIOError::new_err(format!("{}: {}", pamt_path.display(), e)))?;
+    let pamt = PackMeta::parse(&pamt_data, None)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+
+    // Find the directory and file
+    let dir = pamt.directories.iter()
+        .find(|d| d.path == dir_path)
+        .ok_or_else(|| PyValueError::new_err(
+            format!("directory '{}' not found in {}/{}", dir_path, group_name, "0.pamt"),
+        ))?;
+
+    let file = dir.files.iter()
+        .find(|f| f.name == file_name)
+        .ok_or_else(|| PyValueError::new_err(
+            format!("file '{}' not found in directory '{}'", file_name, dir_path),
+        ))?;
+
+    let encrypt_info = pamt.header.encrypt_info.encrypt_info;
+    let raw = paz::extract_file(&group_dir, file, dir_path, &encrypt_info)
+        .map_err(|e| PyIOError::new_err(e.to_string()))?;
+
+    Ok(PyBytes::new(py, &raw).into_any().unbind())
+}
+
 // ── Registration ───────────────────────────────────────────────────────────
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(parse_file, m)?)?;
-    m.add_function(wrap_pyfunction!(parse_bytes, m)?)?;
-    m.add_function(wrap_pyfunction!(write_file, m)?)?;
-    m.add_function(wrap_pyfunction!(serialize_items, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_iteminfo_from_file, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_iteminfo_from_bytes, m)?)?;
+    m.add_function(wrap_pyfunction!(write_iteminfo_to_file, m)?)?;
+    m.add_function(wrap_pyfunction!(serialize_iteminfo, m)?)?;
     m.add_function(wrap_pyfunction!(parse_papgt_file, m)?)?;
     m.add_function(wrap_pyfunction!(parse_papgt_bytes, m)?)?;
     m.add_function(wrap_pyfunction!(write_papgt_file, m)?)?;
@@ -1496,5 +1541,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(decompress_data, m)?)?;
     m.add_class::<PyPackGroupBuilder>()?;
     m.add_function(wrap_pyfunction!(add_papgt_entry, m)?)?;
+    m.add_function(wrap_pyfunction!(extract_file, m)?)?;
     Ok(())
 }

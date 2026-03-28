@@ -521,7 +521,7 @@ class ItemInfo(TypedDict):
 # ── Module Functions ────────────────────────────────────────────────────────
 
 
-def parse_file(path: str) -> list[ItemInfo]:
+def parse_iteminfo_from_file(path: str) -> list[ItemInfo]:
     """Parse all items from a binary file.
 
     Args:
@@ -537,7 +537,7 @@ def parse_file(path: str) -> list[ItemInfo]:
     ...
 
 
-def parse_bytes(data: bytes) -> list[ItemInfo]:
+def parse_iteminfo_from_bytes(data: bytes) -> list[ItemInfo]:
     """Parse all items from raw bytes.
 
     Args:
@@ -552,11 +552,11 @@ def parse_bytes(data: bytes) -> list[ItemInfo]:
     ...
 
 
-def write_file(items: list[ItemInfo], path: str) -> None:
+def write_iteminfo_to_file(items: list[ItemInfo], path: str) -> None:
     """Serialize items and write to a file.
 
     Args:
-        items: List of item dicts (same structure as returned by parse_file).
+        items: List of item dicts (same structure as returned by parse_iteminfo_from_file).
         path: Output file path.
 
     Raises:
@@ -567,7 +567,7 @@ def write_file(items: list[ItemInfo], path: str) -> None:
     ...
 
 
-def serialize_items(items: list[ItemInfo]) -> bytes:
+def serialize_iteminfo(items: list[ItemInfo]) -> bytes:
     """Serialize items to raw bytes.
 
     Args:
@@ -836,5 +836,35 @@ def add_papgt_entry(
 
     Returns:
         Updated PAPGT data dict with the new entry and recalculated checksum.
+    """
+    ...
+
+
+# ── File Extraction ──────────────────────────────────────────────────────
+
+
+def extract_file(
+    game_dir: str,
+    group_name: str,
+    dir_path: str,
+    file_name: str,
+) -> bytes:
+    """Extract a single file from a pack group archive.
+
+    Reads the PAMT index, locates the file in the .paz chunk,
+    decrypts and decompresses it.
+
+    Args:
+        game_dir: Path to the game installation directory.
+        group_name: Pack group name (e.g. "0008").
+        dir_path: Directory path within the archive (e.g. "gamedata/binary__/client/bin").
+        file_name: File name (e.g. "iteminfo.pabgb").
+
+    Returns:
+        Raw decompressed file data as bytes.
+
+    Raises:
+        IOError: If the PAZ file cannot be read.
+        ValueError: If the directory or file is not found in the PAMT.
     """
     ...

@@ -2,14 +2,10 @@
 
 Streams files from a mod folder into .paz chunks on disk, creates the
 0.pamt index, and updates meta/0.papgt with the new group entry.
-
-Usage:
-    python -m crimson_rs.create_pack <game_directory> <group_name> <mod_folder>
 """
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import crimson_rs
@@ -176,28 +172,3 @@ def _update_papgt(
     crimson_rs.write_papgt_file(updated_papgt, str(papgt_path))
     print(f"Updated {papgt_path} (added entry for '{group_name}')")
     print("Done.")
-
-
-def main() -> None:
-    if len(sys.argv) != 4:
-        print(
-            "Usage: python -m crimson_rs.create_pack <game_directory> <group_name> <mod_folder>"
-        )
-        print()
-        print("  Packs all files from <mod_folder> into a new pack group.")
-        print("  The folder structure is preserved as the archive directory structure.")
-        sys.exit(1)
-
-    game_dir = sys.argv[1]
-    group_name = sys.argv[2]
-    mod_folder = sys.argv[3]
-
-    create_pack_group_from_folder(
-        game_dir=game_dir,
-        group_name=group_name,
-        mod_folder=mod_folder,
-    )
-
-
-if __name__ == "__main__":
-    main()
