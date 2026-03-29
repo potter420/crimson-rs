@@ -2,6 +2,7 @@ mod binary;
 mod crypto;
 mod item_info;
 mod python;
+pub(crate) mod python_traits;
 
 use pyo3::prelude::*;
 

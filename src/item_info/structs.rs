@@ -1,19 +1,24 @@
 use std::io::{self, Write};
 
+use pyo3::prelude::*;
+use pyo3::types::PyDict;
+use pyo3::exceptions::PyValueError;
+
 use super::keys::*;
 use crate::binary::*;
-use crate::binary_struct;
+use crate::python_traits::{ToPyValue, WritePyValue, get_field};
+use crate::py_binary_struct;
 
 // ── Simple structs ──────────────────────────────────────────────────────────
 
-binary_struct! {
+py_binary_struct! {
     pub struct OccupiedEquipSlotData {
         pub equip_slot_name_key: u32,
         pub equip_slot_name_index_list: CArray<u8>,
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct ItemIconData {
         pub icon_path: StringInfoKey,
         pub check_exist_sealed_data: u8,
@@ -21,42 +26,42 @@ binary_struct! {
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct PassiveSkillLevel {
         pub skill: SkillKey,
         pub level: u32,
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct ReserveSlotTargetData {
         pub reserve_slot_info: ReserveSlotKey,
         pub condition_info: ConditionKey,
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct SocketMaterialItem {
         pub item: ItemKey,
         pub value: u64,
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct EnchantStatChange {
         pub stat: StatusKey,
         pub change_mb: i64,
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct EnchantLevelChange {
         pub stat: StatusKey,
         pub change_mb: i8,
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct EnchantStatData {
         pub max_stat_list: CArray<EnchantStatChange>,
         pub regen_stat_list: CArray<EnchantStatChange>,
@@ -65,7 +70,7 @@ binary_struct! {
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct PriceFloor {
         pub price: u64,
         pub sym_no: u32,
@@ -73,21 +78,21 @@ binary_struct! {
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct ItemPriceInfo {
         pub key: ItemKey,
         pub price: PriceFloor,
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct EquipmentBuff {
         pub buff: BuffKey,
         pub level: u32,
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct EnchantData {
         pub level: u16,
         pub enchant_stat_data: EnchantStatData,
@@ -96,7 +101,7 @@ binary_struct! {
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct GimmickVisualPrefabData {
         pub tag_name_hash: u32,
         pub scale: [f32; 3],
@@ -106,7 +111,7 @@ binary_struct! {
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct GameEventExecuteData {
         pub game_event_type: u8,
         pub player_condition: ConditionKey,
@@ -115,14 +120,14 @@ binary_struct! {
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct InventoryChangeData {
         pub game_event_execute_data: GameEventExecuteData,
         pub to_inventory_info: InventoryKey,
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct PageData<'a> {
         pub left_page_texture_path: CString<'a>,
         pub right_page_texture_path: CString<'a>,
@@ -131,7 +136,7 @@ binary_struct! {
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct InspectData<'a> {
         pub item_info: ItemKey,
         pub gimmick_info: GimmickInfoKey,
@@ -156,7 +161,7 @@ binary_struct! {
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct InspectAction<'a> {
         pub action_name_hash: u32,
         pub catch_tag_name_hash: u32,
@@ -165,7 +170,7 @@ binary_struct! {
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct ItemInfoSharpnessData {
         pub max_sharpness: u16,
         pub craft_tool_info: CraftToolKey,
@@ -173,14 +178,14 @@ binary_struct! {
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct ItemBundleData {
         pub count_mb: u64,
         pub key: GimmickInfoKey,
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct UnitData<'a> {
         pub ui_component: CString<'a>,
         pub minimum: u32,
@@ -190,21 +195,21 @@ binary_struct! {
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct MoneyUnitEntry<'a> {
         pub key: u32,
         pub value: UnitData<'a>,
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct MoneyTypeDefine<'a> {
         pub price_floor_value: u64,
         pub unit_data_list_map: CArray<MoneyUnitEntry<'a>>,
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct PrefabData {
         pub prefab_names: CArray<StringInfoKey>,
         pub equip_slot_list: CArray<u16>,
@@ -213,7 +218,7 @@ binary_struct! {
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct DockingChildData<'a> {
         pub gimmick_info_key: GimmickInfoKey,
         pub character_key: CharacterKey,
@@ -240,7 +245,7 @@ binary_struct! {
     }
 }
 
-binary_struct! {
+py_binary_struct! {
     pub struct RepairData {
         pub resource_item_info: ItemKey,
         pub repair_value: u16,
@@ -292,9 +297,40 @@ impl BinaryWrite for SubItem {
     }
 }
 
+impl ToPyValue for SubItem {
+    fn to_py_value(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let d = PyDict::new(py);
+        d.set_item("type_id", self.type_id)?;
+        match &self.value {
+            SubItemValue::Item(k) => d.set_item("value", k.0)?,
+            SubItemValue::Character(k) => d.set_item("value", k.0)?,
+            SubItemValue::Gimmick(k) => d.set_item("value", k.0)?,
+            SubItemValue::None => d.set_item("value", py.None())?,
+        };
+        Ok(d.into_any().unbind())
+    }
+}
+
+impl WritePyValue for SubItem {
+    fn write_from_py(w: &mut Vec<u8>, obj: &Bound<'_, PyAny>) -> PyResult<()> {
+        let d = obj.cast::<PyDict>()?;
+        let type_id: u8 = get_field(d, "type_id")?.extract()?;
+        w.push(type_id);
+        match type_id {
+            0 | 3 | 9 => {
+                let v: u32 = get_field(d, "value")?.extract()?;
+                w.extend_from_slice(&v.to_le_bytes());
+            }
+            14 => {}
+            _ => return Err(PyValueError::new_err(format!("invalid SubItem type_id: {}", type_id))),
+        }
+        Ok(())
+    }
+}
+
 // ── DropDefaultData ─────────────────────────────────────────────────────────
 
-binary_struct! {
+py_binary_struct! {
     pub struct DropDefaultData {
         pub drop_enchant_level: u16,
         pub socket_item_list: CArray<ItemKey>,
@@ -354,6 +390,49 @@ impl BinaryWrite for SealableItemInfo<'_> {
             SealableValue::Character(k) => k.write_to(w),
             SealableValue::Tribe(k) => k.write_to(w),
         }
+    }
+}
+
+impl ToPyValue for SealableItemInfo<'_> {
+    fn to_py_value(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let d = PyDict::new(py);
+        d.set_item("type_tag", self.type_tag)?;
+        d.set_item("item_key", self.item_key.0)?;
+        d.set_item("unknown0", self.unknown0)?;
+        match &self.value {
+            SealableValue::Item(k) => d.set_item("value", k.0)?,
+            SealableValue::Gimmick(k) => d.set_item("value", k.0)?,
+            SealableValue::String(s) => d.set_item("value", s.data)?,
+            SealableValue::Character(k) => d.set_item("value", k.0)?,
+            SealableValue::Tribe(k) => d.set_item("value", k.0)?,
+        };
+        Ok(d.into_any().unbind())
+    }
+}
+
+impl WritePyValue for SealableItemInfo<'_> {
+    fn write_from_py(w: &mut Vec<u8>, obj: &Bound<'_, PyAny>) -> PyResult<()> {
+        let d = obj.cast::<PyDict>()?;
+        let type_tag: u8 = get_field(d, "type_tag")?.extract()?;
+        let item_key: u32 = get_field(d, "item_key")?.extract()?;
+        let unknown0: u64 = get_field(d, "unknown0")?.extract()?;
+        w.push(type_tag);
+        w.extend_from_slice(&item_key.to_le_bytes());
+        w.extend_from_slice(&unknown0.to_le_bytes());
+        let value_obj = get_field(d, "value")?;
+        match type_tag {
+            0 | 1 | 3 | 4 => {
+                let v: u32 = value_obj.extract()?;
+                w.extend_from_slice(&v.to_le_bytes());
+            }
+            2 => {
+                let s: String = value_obj.extract()?;
+                w.extend_from_slice(&(s.len() as u32).to_le_bytes());
+                w.extend_from_slice(s.as_bytes());
+            }
+            _ => return Err(PyValueError::new_err(format!("invalid sealable type_tag: {}", type_tag))),
+        }
+        Ok(())
     }
 }
 

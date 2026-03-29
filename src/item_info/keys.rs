@@ -1,4 +1,6 @@
 use crate::binary::{BinaryRead, BinaryWrite};
+use crate::python_traits::{ToPyValue, WritePyValue};
+use pyo3::prelude::*;
 use std::io::{self, Write};
 
 macro_rules! define_key {
@@ -15,6 +17,18 @@ macro_rules! define_key {
         impl BinaryWrite for $name {
             fn write_to(&self, w: &mut dyn Write) -> io::Result<()> {
                 self.0.write_to(w)
+            }
+        }
+
+        impl ToPyValue for $name {
+            fn to_py_value(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+                self.0.to_py_value(py)
+            }
+        }
+
+        impl WritePyValue for $name {
+            fn write_from_py(w: &mut Vec<u8>, obj: &Bound<'_, PyAny>) -> PyResult<()> {
+                <$inner as WritePyValue>::write_from_py(w, obj)
             }
         }
     };
