@@ -19,7 +19,7 @@ mod tests {
     use crate::item_info::ItemInfo;
 
     const BINARY_PATH: &str =
-        "/mnt/e/OpensourceGame/CrimsonDesert/Crimson Browser/iteminfo_decompressed.pabgb";
+        "/mnt/e/OpensourceGame/CrimsonDesert/Godmod/backups/iteminfo_1.0.1.0_update.pabgb";
     const PAPGT_PATH: &str =
         "/mnt/e/OpensourceGame/CrimsonDesert/Crimson Browser/Original/0.papgt";
     const PAMT_PATH: &str =

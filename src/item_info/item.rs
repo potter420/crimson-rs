@@ -75,6 +75,7 @@ pub struct ItemInfo<'a> {
     pub price_list: CArray<ItemPriceInfo>,
     pub docking_child_data: COptional<DockingChildData<'a>>,
     pub inventory_change_data: COptional<InventoryChangeData>,
+    pub unk_texture_path: CString<'a>,
     pub fixed_page_data_list: CArray<PageData<'a>>,
     pub dynamic_page_data_list: CArray<PageData<'a>>,
     pub inspect_data_list: CArray<InspectData<'a>>,
@@ -184,6 +185,7 @@ impl<'a> BinaryRead<'a> for ItemInfo<'a> {
             price_list: BinaryRead::read_from(data, offset)?,
             docking_child_data: BinaryRead::read_from(data, offset)?,
             inventory_change_data: BinaryRead::read_from(data, offset)?,
+            unk_texture_path: BinaryRead::read_from(data, offset)?,
             fixed_page_data_list: BinaryRead::read_from(data, offset)?,
             dynamic_page_data_list: BinaryRead::read_from(data, offset)?,
             inspect_data_list: BinaryRead::read_from(data, offset)?,
@@ -294,6 +296,7 @@ impl BinaryWrite for ItemInfo<'_> {
         self.price_list.write_to(w)?;
         self.docking_child_data.write_to(w)?;
         self.inventory_change_data.write_to(w)?;
+        self.unk_texture_path.write_to(w)?;
         self.fixed_page_data_list.write_to(w)?;
         self.dynamic_page_data_list.write_to(w)?;
         self.inspect_data_list.write_to(w)?;
@@ -338,7 +341,7 @@ mod tests {
     use super::*;
 
     const BINARY_PATH: &str =
-        "/mnt/e/OpensourceGame/CrimsonDesert/Crimson Browser/iteminfo_decompressed.pabgb";
+        "/mnt/e/OpensourceGame/CrimsonDesert/Godmod/backups/iteminfo_1.0.1.0_update.pabgb";
 
     fn load_binary() -> Vec<u8> {
         std::fs::read(BINARY_PATH).expect("binary file not found")
@@ -351,16 +354,19 @@ mod tests {
         let item = ItemInfo::read_from(&data, &mut offset).unwrap();
         assert_eq!(item.key, ItemKey(2200));
         assert_eq!(item.string_key.data, "Pyeonjeon_Arrow");
-        assert_eq!(offset, 0x243);
+        assert_eq!(offset, 0x247, "unexpected size for first item");
     }
 
     #[test]
     fn test_parse_second_item() {
         let data = load_binary();
-        let mut offset = 0x243;
+        let mut offset = 0x247;
         let item = ItemInfo::read_from(&data, &mut offset).unwrap();
         assert_ne!(item.key, ItemKey(0));
-        println!("Second item: key={}, name={}", item.key.0, item.string_key.data);
+        println!(
+            "Second item: key={}, name={}",
+            item.key.0, item.string_key.data
+        );
     }
 
     #[test]

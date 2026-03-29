@@ -371,6 +371,7 @@ struct Item {
     array<ItemPriceInfo> _priceList;
     optional<DockingChildData> _dockingChildData;
     optional<InventoryChangeData> _inventoryChangeData;
+    string _unkTextureRef1;
     array<PageData> _fixedPageDataList;
     array<PageData> _dynamicPageDataList;
     array<InspectData> _inspectDataList;
@@ -408,21 +409,31 @@ struct Item {
     array<RepairData> _repairDataList;
 };
 
-Item item @0x0;
-Item arrow @0x00000243;
+Item lostCowNotice @0x00046DCE;
+
+#pragma pattern_limit 10485760
+Item items[while($ < std::mem::size())] @0x0;
+// Item toad @0x00082A83;
+// Item peony @0x00084746;
+// Item marigold @0x000850E8;
+// Item earring @0x001EB796; 
+
+
+// std::print("Toad item_type {}, {}, {}", toad._itemType, peony._itemType, marigold._itemType);
+// Item arrow @0x00000243;
 // Item item_2 @0x255B;
 // Item item_3 @0x46eab8;
 // Item item_4 @0x48DB76;
 // Item item_5 @0x48dd74;
 // Item item_6 @0x42C75A;
-Item neck @0x001D84C7; // Karanda_Necklace
+// Item neck @0x001D84C7; // Karanda_Necklace
 // Item item_8 @0x003BD794;
 // Item item_9 @0x003BBBEC;
 // Item immune_ring @0x003BB978; // Dev Red Dragon Ring Immune
 // Item helm @0x001A988F;
-Item sword @0x00429474;
-Item hwando @0x00486829;
-Item sydmon @0x0048B004;
+// Item sword @0x00429474;
+// Item hwando @0x00486829;
+// Item sydmon @0x0048B004;
 // Item helm @0x003B305D;
 // Item earring @0x001E2866;
 // Item dev_growth @0x003BB6FC;
