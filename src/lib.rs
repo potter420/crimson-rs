@@ -17,6 +17,7 @@ mod tests {
     use crate::binary::BinaryWrite;
     use crate::binary::papgt::PackGroupTreeMeta;
     use crate::binary::pamt::PackMeta;
+    use crate::binary::paloc::LocalizationFile;
     use crate::item_info::ItemInfo;
 
     const BINARY_PATH: &str =
@@ -97,6 +98,85 @@ mod tests {
         let written = pamt.to_bytes().unwrap();
         assert_eq!(written.len(), data.len(), "pamt roundtrip size mismatch");
         assert_eq!(written, data, "pamt roundtrip bytes mismatch");
+    }
+
+    fn extract_paloc_data() -> Vec<u8> {
+        extract_paloc_from_archive("0020", "localizationstring_eng.paloc")
+    }
+
+    fn extract_paloc_from_archive(group: &str, file_name: &str) -> Vec<u8> {
+        use std::path::Path;
+        use crate::binary::paz;
+
+        let group_dir = Path::new(GAME_DIR).join(group);
+        let pamt_data = std::fs::read(group_dir.join("0.pamt"))
+            .unwrap_or_else(|e| panic!("{}/0.pamt: {}", group, e));
+        let pamt = PackMeta::parse(&pamt_data, None).unwrap();
+
+        let dir = pamt.directories.iter()
+            .find(|d| d.path == "gamedata/stringtable/binary__")
+            .expect("directory not found in pamt");
+        let file = dir.files.iter()
+            .find(|f| f.name == file_name)
+            .unwrap_or_else(|| panic!("{} not found", file_name));
+
+        paz::extract_file(
+            &group_dir,
+            file,
+            "gamedata/stringtable/binary__",
+            &pamt.header.encrypt_info.encrypt_info,
+        ).unwrap()
+    }
+
+    #[test]
+    fn test_paloc_parse() {
+        let data = extract_paloc_data();
+        let paloc = LocalizationFile::parse(&data).unwrap();
+        println!("PALOC: {} entries", paloc.entries.len());
+        for entry in paloc.entries.iter().take(5) {
+            println!(
+                "  id={}, key={}, value={}",
+                entry.unk_id,
+                entry.string_key.data,
+                &entry.string_value.data[..entry.string_value.data.len().min(80)],
+            );
+        }
+        assert!(!paloc.entries.is_empty(), "should have entries");
+    }
+
+    #[test]
+    fn test_paloc_roundtrip() {
+        let data = extract_paloc_data();
+        let paloc = LocalizationFile::parse(&data).unwrap();
+        let written = paloc.to_bytes().unwrap();
+        assert_eq!(written.len(), data.len(), "paloc roundtrip size mismatch");
+        assert_eq!(written, data, "paloc roundtrip bytes mismatch");
+    }
+
+    #[test]
+    fn test_paloc_kor_parse() {
+        let data = extract_paloc_from_archive("0019", "localizationstring_kor.paloc");
+        let paloc = LocalizationFile::parse(&data).unwrap();
+        println!("PALOC KOR: {} entries", paloc.entries.len());
+        for entry in paloc.entries.iter().take(5) {
+            let preview: String = entry.string_value.data.chars().take(40).collect();
+            println!(
+                "  id={}, key={}, value={}",
+                entry.unk_id,
+                entry.string_key.data,
+                preview,
+            );
+        }
+        assert!(!paloc.entries.is_empty(), "should have entries");
+    }
+
+    #[test]
+    fn test_paloc_kor_roundtrip() {
+        let data = extract_paloc_from_archive("0019", "localizationstring_kor.paloc");
+        let paloc = LocalizationFile::parse(&data).unwrap();
+        let written = paloc.to_bytes().unwrap();
+        assert_eq!(written.len(), data.len(), "paloc kor roundtrip size mismatch");
+        assert_eq!(written, data, "paloc kor roundtrip bytes mismatch");
     }
 
     #[test]

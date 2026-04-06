@@ -579,6 +579,28 @@ def serialize_iteminfo(items: list[ItemInfo]) -> bytes:
     ...
 
 
+# ── Localization ──────────────────────────────────────────────────────────
+
+
+class LocalizationEntry(TypedDict):
+    unk_id: int
+    """u64"""
+    string_key: str
+    """String key identifier."""
+    string_value: str
+    """Localized string value (UTF-8)."""
+
+
+def parse_paloc_bytes(data: bytes) -> list[LocalizationEntry]:
+    """Parse localization entries from raw bytes."""
+    ...
+
+
+def serialize_paloc(items: list[LocalizationEntry]) -> bytes:
+    """Serialize localization entries to raw bytes."""
+    ...
+
+
 # ── Checksum ───────────────────────────────────────────────────────────────
 
 

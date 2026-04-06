@@ -5,6 +5,7 @@ pub(crate) mod trie;
 pub(crate) mod papgt;
 pub(crate) mod pamt;
 pub(crate) mod paz;
+pub(crate) mod paloc;
 
 pub use types::*;
 

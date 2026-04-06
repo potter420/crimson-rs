@@ -372,6 +372,54 @@ pub fn wr_pamt_from_dict(d: &Bound<'_, PyDict>) -> PyResult<Vec<u8>> {
     pamt.to_bytes().map_err(|e| PyIOError::new_err(e.to_string()))
 }
 
+// ── Localization to/from Python ────────────────────────────────────────────
+
+fn to_py_paloc_entry<'py>(py: Python<'py>, entry: &crate::binary::paloc::LocalizationEntry) -> PyResult<Bound<'py, PyDict>> {
+    let d = PyDict::new(py);
+    d.set_item("unk_id", entry.unk_id)?;
+    d.set_item("string_key", entry.string_key.data)?;
+    d.set_item("string_value", entry.string_value.data)?;
+    Ok(d)
+}
+
+#[pyfunction]
+pub fn parse_paloc_bytes(py: Python<'_>, data: &[u8]) -> PyResult<Py<PyAny>> {
+    let paloc = crate::binary::paloc::LocalizationFile::parse(data)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let entries = PyList::empty(py);
+    for entry in &paloc.entries {
+        entries.append(to_py_paloc_entry(py, entry)?)?;
+    }
+    Ok(entries.into_any().unbind())
+}
+
+#[pyfunction]
+pub fn serialize_paloc(py: Python<'_>, items: &Bound<'_, PyList>) -> PyResult<Py<PyAny>> {
+    let data = serialize_paloc_impl(items)?;
+    Ok(PyBytes::new(py, &data).into_any().unbind())
+}
+
+fn serialize_paloc_impl(items: &Bound<'_, PyList>) -> PyResult<Vec<u8>> {
+    use crate::binary::BinaryWrite;
+
+    let mut buf = Vec::new();
+    for item in items.iter() {
+        let d = item.cast::<PyDict>()?;
+        let unk_id: u64 = get(d, "unk_id")?;
+        let string_key: String = get(d, "string_key")?;
+        let string_value: String = get(d, "string_value")?;
+
+        unk_id.write_to(&mut buf).map_err(|e| PyIOError::new_err(e.to_string()))?;
+        (string_key.len() as u32).write_to(&mut buf).map_err(|e| PyIOError::new_err(e.to_string()))?;
+        buf.extend_from_slice(string_key.as_bytes());
+        (string_value.len() as u32).write_to(&mut buf).map_err(|e| PyIOError::new_err(e.to_string()))?;
+        buf.extend_from_slice(string_value.as_bytes());
+    }
+    let count = items.len() as u32;
+    count.write_to(&mut buf).map_err(|e| PyIOError::new_err(e.to_string()))?;
+    Ok(buf)
+}
+
 // ── Checksum ──────────────────────────────────────────────────────────────
 
 #[pyfunction]
@@ -602,5 +650,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPackGroupBuilder>()?;
     m.add_function(wrap_pyfunction!(add_papgt_entry, m)?)?;
     m.add_function(wrap_pyfunction!(extract_file, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_paloc_bytes, m)?)?;
+    m.add_function(wrap_pyfunction!(serialize_paloc, m)?)?;
     Ok(())
 }

@@ -17,6 +17,12 @@ Rust library with Python bindings (via PyO3/maturin) for reading, writing, and m
 - Binary format must roundtrip (read and write back identically)
 - Custom types for binary serialization: BString (u32 len + [u8; len] + null byte), optional<T> (u8 flag + T if nonzero), array<T> (u32 count + count × T), Variant (u8 tag + match on tag)
 
+# Binary Exploration
+- Use `plcli` + `.hexpat` pattern files for binary format exploration, NOT Python scripts
+- Write partial hexpat patterns, test with `plcli run -i <file> -p <pattern.hexpat> -v -d`
+- Iterate: write struct, run plcli, check output, refine
+- Pattern files go in `references/`
+
 # Reference Files
 - `/mnt/e/OpensourceGame/CrimsonDesert/Crimson Browser/iteminfo_decompressed.pabgb` (5993 items)
 - `/mnt/e/OpensourceGame/CrimsonDesert/Crimson Browser/Original/0.pamt` — Original PAMT
