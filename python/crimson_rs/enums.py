@@ -1,4 +1,3 @@
-"""Public enums for Crimson Desert archive formats."""
 
 from __future__ import annotations
 
@@ -6,14 +5,12 @@ from enum import IntEnum, IntFlag
 
 
 class Compression(IntEnum):
-    """Compression algorithm for pack entries."""
     NONE = 0
     LZ4 = 2
     ZLIB = 3
 
 
 class Crypto(IntEnum):
-    """Encryption algorithm for pack entries."""
     NONE = 0
     ICE = 1
     AES = 2
@@ -21,7 +18,6 @@ class Crypto(IntEnum):
 
 
 class Language(IntFlag):
-    """Language bitmask flags for pack group entries."""
     KOR = 1 << 0
     ENG = 1 << 1
     JPN = 1 << 2

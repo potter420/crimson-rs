@@ -242,6 +242,22 @@ py_binary_struct! {
         pub enable_collision: u8,
         pub disable_collision_with_other_gimmick: u8,
         pub docking_slot_key: CString<'a>,
+        pub inherit_summoner: u8,
+        pub summon_tag_name_hash: [u32; 4],
+    }
+}
+
+py_binary_struct! {
+    pub struct PatternParamString<'a> {
+        pub flag u8;
+        pub param_string: CString<'a>,
+    }
+}
+
+py_binary_struct! {
+    pub struct PatternDescriptionData<'a> {
+        pub pattern_description_info: u32,
+        pub param_string_list: CArray<PatternParamString<'a>>,
     }
 }
 
@@ -281,6 +297,31 @@ impl<'a> BinaryRead<'a> for SubItem {
             _ => return Err(io::Error::new(io::ErrorKind::InvalidData,
                 format!("unknown SubItem type: {}", type_id))),
         };
+        Ok(SubItem { type_id, value })
+    }
+}
+
+impl<'a> BinaryReadTracked<'a> for SubItem {
+    fn read_tracked(
+        data: &'a [u8],
+        offset: &mut usize,
+        path: &mut String,
+        ranges: &mut Vec<FieldRange>,
+    ) -> io::Result<Self> {
+        let saved = push_path(path, "type_id");
+        let type_id = u8::read_tracked(data, offset, path, ranges)?;
+        pop_path(path, saved);
+
+        let saved = push_path(path, "value");
+        let value = match type_id {
+            0 => SubItemValue::Item(ItemKey::read_tracked(data, offset, path, ranges)?),
+            3 => SubItemValue::Character(CharacterKey::read_tracked(data, offset, path, ranges)?),
+            9 => SubItemValue::Gimmick(GimmickInfoKey::read_tracked(data, offset, path, ranges)?),
+            14 => SubItemValue::None,
+            _ => return Err(io::Error::new(io::ErrorKind::InvalidData,
+                format!("unknown SubItem type: {}", type_id))),
+        };
+        pop_path(path, saved);
         Ok(SubItem { type_id, value })
     }
 }
@@ -374,6 +415,40 @@ impl<'a> BinaryRead<'a> for SealableItemInfo<'a> {
             _ => return Err(io::Error::new(io::ErrorKind::InvalidData,
                 format!("unknown SealableItemInfo type: {}", type_tag))),
         };
+        Ok(SealableItemInfo { type_tag, item_key, unknown0, value })
+    }
+}
+
+impl<'a> BinaryReadTracked<'a> for SealableItemInfo<'a> {
+    fn read_tracked(
+        data: &'a [u8],
+        offset: &mut usize,
+        path: &mut String,
+        ranges: &mut Vec<FieldRange>,
+    ) -> io::Result<Self> {
+        let saved = push_path(path, "type_tag");
+        let type_tag = u8::read_tracked(data, offset, path, ranges)?;
+        pop_path(path, saved);
+
+        let saved = push_path(path, "item_key");
+        let item_key = ItemKey::read_tracked(data, offset, path, ranges)?;
+        pop_path(path, saved);
+
+        let saved = push_path(path, "unknown0");
+        let unknown0 = u64::read_tracked(data, offset, path, ranges)?;
+        pop_path(path, saved);
+
+        let saved = push_path(path, "value");
+        let value = match type_tag {
+            0 => SealableValue::Item(ItemKey::read_tracked(data, offset, path, ranges)?),
+            1 => SealableValue::Gimmick(GimmickInfoKey::read_tracked(data, offset, path, ranges)?),
+            2 => SealableValue::String(CString::read_tracked(data, offset, path, ranges)?),
+            3 => SealableValue::Character(CharacterKey::read_tracked(data, offset, path, ranges)?),
+            4 => SealableValue::Tribe(TribeInfoKey::read_tracked(data, offset, path, ranges)?),
+            _ => return Err(io::Error::new(io::ErrorKind::InvalidData,
+                format!("unknown SealableItemInfo type: {}", type_tag))),
+        };
+        pop_path(path, saved);
         Ok(SealableItemInfo { type_tag, item_key, unknown0, value })
     }
 }

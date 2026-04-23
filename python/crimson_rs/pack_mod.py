@@ -1,10 +1,3 @@
-"""Pack a mod folder into a new pack group for Crimson Desert.
-
-Streams files from a mod folder into .paz chunks on disk, creates
-the 0.pamt index, then loads the game's original meta/0.papgt,
-adds the new group entry, and writes the updated copy to the
-output directory — nothing in the game install is modified.
-"""
 
 from __future__ import annotations
 
@@ -26,30 +19,10 @@ def pack_mod(
     is_optional: bool = False,
     language: Language = Language.ALL,
 ) -> None:
-    """Pack a mod folder into a new pack group.
-
-    Reads files from mod_folder, streams them into .paz chunks under
-    output_dir/group_name/, creates the 0.pamt index, loads the original
-    meta/0.papgt from game_dir, adds the new entry, and writes the
-    updated PAPGT to output_dir/meta/0.papgt.
-
-    Args:
-        game_dir: Path to the game installation directory.
-        mod_folder: Path to the folder containing mod files.
-        output_dir: Path where the packed output will be written.
-        group_name: Name for the new group folder (e.g. "0070").
-        compression: Compression algorithm to use.
-        crypto: Encryption algorithm to use.
-        encrypt_info: 3 bytes of encryption info.
-        max_chunk_size: Max bytes per .paz chunk file.
-        is_optional: Whether this group is optional.
-        language: Language flags for this group.
-    """
     game_path = Path(game_dir)
     mod_path = Path(mod_folder)
     out_path = Path(output_dir)
 
-    # ── Validate inputs ───────────────────────────────────────────────────
     if not game_path.is_dir():
         raise FileNotFoundError(f"Game directory not found: {game_path}")
 
@@ -64,12 +37,10 @@ def pack_mod(
     if group_path.exists():
         raise FileExistsError(f"Group directory already exists: {group_path}")
 
-    # Create output directories
     group_path.mkdir(parents=True, exist_ok=True)
     meta_dir = out_path / "meta"
     meta_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── Step 1: Pack files into .paz chunks + 0.pamt ──────────────────────
     print(f"Packing files from: {mod_path}")
     print(f"Output group dir:   {group_path}")
 
@@ -105,13 +76,10 @@ def pack_mod(
     pamt_bytes = builder.finish()
     print(f"  .paz chunk(s) + 0.pamt written to {group_path}")
 
-    # ── Step 2: Compute PAMT checksum for PAPGT entry ─────────────────────
-    # PAMT header is 12 bytes; the PAPGT entry checksum covers post-header data
     pamt_post_header = pamt_bytes[12:]
     pamt_checksum = crimson_rs.calculate_checksum(pamt_post_header)
     print(f"  PAMT checksum: 0x{pamt_checksum:08X}")
 
-    # ── Step 3: Load original PAPGT, add entry, save to output ────────────
     print(f"Loading original PAPGT: {original_papgt}")
     papgt = crimson_rs.parse_papgt_file(str(original_papgt))
     print(f"  Original has {len(papgt['entries'])} entries")
@@ -129,7 +97,6 @@ def pack_mod(
     crimson_rs.write_papgt_file(updated_papgt, str(output_papgt))
     print(f"  Written updated PAPGT to: {output_papgt}")
 
-    # ── Done ──────────────────────────────────────────────────────────────
     print()
     print("Done! To install, copy these into the game directory:")
     print(f"  {group_path}  ->  {game_path / group_name}")

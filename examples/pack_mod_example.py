@@ -1,13 +1,3 @@
-"""Pack a mod folder into a new pack group for Crimson Desert.
-
-Reads all files from a mod folder, packs them into .paz archive chunks
-with a 0.pamt index, and updates the game's PAPGT with the new group
-entry. Output goes to a separate packs directory -- the game install
-is never modified directly.
-
-Usage:
-    python examples/pack_mod_example.py --game-dir /path/to/game --mod-folder /path/to/mod --output-dir /path/to/output --group 0070
-"""
 
 import argparse
 
