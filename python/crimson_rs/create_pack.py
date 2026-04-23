@@ -1,8 +1,3 @@
-"""Create a new pack group in a Crimson Desert game directory.
-
-Streams files from a mod folder into .paz chunks on disk, creates the
-0.pamt index, and updates meta/0.papgt with the new group entry.
-"""
 
 from __future__ import annotations
 
@@ -23,19 +18,6 @@ def create_pack_group(
     is_optional: bool = False,
     language: Language = Language.ALL,
 ) -> None:
-    """Create a new pack group from in-memory file data.
-
-    Args:
-        game_dir: Path to the game installation directory.
-        group_name: Name for the new group folder (e.g. "0036").
-        files: Mapping of {dir_path: {filename: data}}.
-        compression: Compression algorithm to use.
-        crypto: Encryption algorithm to use.
-        encrypt_info: 3 bytes of encryption info.
-        max_chunk_size: Max bytes per .paz chunk file.
-        is_optional: Whether this group is optional.
-        language: Language flags for this group.
-    """
     game_path = Path(game_dir)
     group_path = game_path / group_name
 
@@ -74,26 +56,6 @@ def create_pack_group_from_folder(
     is_optional: bool = False,
     language: Language = Language.ALL,
 ) -> None:
-    """Create a new pack group by streaming files from a folder on disk.
-
-    Files are read one at a time — only one file's data is in memory
-    at any point. The .paz chunks are written to disk incrementally.
-
-    The folder structure under mod_folder becomes the directory structure
-    inside the archive. For example:
-        mod_folder/textures/ui/icon.dds -> dir_path="textures/ui", file_name="icon.dds"
-
-    Args:
-        game_dir: Path to the game installation directory.
-        group_name: Name for the new group folder (e.g. "0036").
-        mod_folder: Path to folder containing files to pack.
-        compression: Compression algorithm to use.
-        crypto: Encryption algorithm to use.
-        encrypt_info: 3 bytes of encryption info.
-        max_chunk_size: Max bytes per .paz chunk file.
-        is_optional: Whether this group is optional.
-        language: Language flags for this group.
-    """
     game_path = Path(game_dir)
     mod_path = Path(mod_folder)
     group_path = game_path / group_name
@@ -157,7 +119,6 @@ def _update_papgt(
 ) -> None:
     papgt_path = game_path / "meta" / "0.papgt"
 
-    # PAMT checksum is over post-header data (after 12-byte header)
     pamt_post_header = pamt_bytes[12:]
     pamt_checksum = crimson_rs.calculate_checksum(pamt_post_header)
 

@@ -1,6 +1,40 @@
 use std::io::{self, Write};
 
-use super::{BinaryRead, BinaryWrite, check_remaining};
+use super::{BinaryRead, BinaryReadTracked, BinaryWrite, FieldRange, check_remaining};
+
+// Helper: record a leaf `FieldRange` for a primitive that delegates to
+// `BinaryRead::read_from`. Keeps the per-primitive impl a three-liner.
+macro_rules! tracked_leaf {
+    ($t:ty, $ty_name:literal) => {
+        impl<'a> BinaryReadTracked<'a> for $t {
+            fn read_tracked(
+                data: &'a [u8],
+                offset: &mut usize,
+                path: &mut String,
+                ranges: &mut Vec<FieldRange>,
+            ) -> io::Result<Self> {
+                let start = *offset;
+                let v = <$t as BinaryRead>::read_from(data, offset)?;
+                ranges.push(FieldRange {
+                    path: path.clone(),
+                    start,
+                    end: *offset,
+                    ty: $ty_name,
+                });
+                Ok(v)
+            }
+        }
+    };
+}
+
+tracked_leaf!(u8, "u8");
+tracked_leaf!(u16, "u16");
+tracked_leaf!(u32, "u32");
+tracked_leaf!(u64, "u64");
+tracked_leaf!(i8, "i8");
+tracked_leaf!(i32, "i32");
+tracked_leaf!(i64, "i64");
+tracked_leaf!(f32, "f32");
 
 impl<'a> BinaryRead<'a> for u8 {
     fn read_from(data: &'a [u8], offset: &mut usize) -> io::Result<Self> {

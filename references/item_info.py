@@ -39,7 +39,6 @@ class optional[SubB](BinarySerializable):
         return cls(has_value, value)
 
 
-# Utility types
 class string(BinarySerializable):
     length: u32
     data: bytes
@@ -52,17 +51,6 @@ class string(BinarySerializable):
         return cls(length, data)
 
 type array[TType] = custom[list[TType], u32]
-
-# class array[T: Type[BinarySerializable]](BinarySerializable):
-#     length: u32
-#     data: list[T]
-
-#     @classmethod
-#     def read_from(cls, reader: EndianedReaderIOBase, context=None):
-#         length = reader.read_u32()
-        
-#         data = [T.read_from(reader, context) for _ in range(length)]
-#         return cls(length, data)
 
 
 class boolean(BinarySerializable):
@@ -79,9 +67,6 @@ class LocalizableString(BinarySerializable):
     category: u8
     index: u64
     default: string
-
-
-# Key types
 
 
 @dataclass(frozen=True)

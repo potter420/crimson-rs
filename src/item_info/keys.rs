@@ -1,4 +1,4 @@
-use crate::binary::{BinaryRead, BinaryWrite};
+use crate::binary::{BinaryRead, BinaryReadTracked, BinaryWrite, FieldRange};
 use crate::python_traits::{ToPyValue, WritePyValue};
 use pyo3::prelude::*;
 use std::io::{self, Write};
@@ -11,6 +11,20 @@ macro_rules! define_key {
         impl<'a> BinaryRead<'a> for $name {
             fn read_from(data: &'a [u8], offset: &mut usize) -> io::Result<Self> {
                 <$inner>::read_from(data, offset).map($name)
+            }
+        }
+
+        impl<'a> BinaryReadTracked<'a> for $name {
+            fn read_tracked(
+                data: &'a [u8],
+                offset: &mut usize,
+                path: &mut String,
+                ranges: &mut Vec<FieldRange>,
+            ) -> io::Result<Self> {
+                // Delegate to the inner primitive's tracked read so the
+                // recorded range carries the correct path and byte span.
+                <$inner as BinaryReadTracked>::read_tracked(data, offset, path, ranges)
+                    .map($name)
             }
         }
 

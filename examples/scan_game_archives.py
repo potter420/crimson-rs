@@ -1,9 +1,3 @@
-"""Scan a Crimson Desert game directory and list all archive groups.
-
-Usage:
-    python examples/scan_game_archives.py [--game-dir PATH]
-    python examples/scan_game_archives.py [--game-dir PATH] --group 0008
-"""
 
 from __future__ import annotations
 
@@ -84,7 +78,6 @@ def scan_game_dir(game_dir: str) -> None:
 
 
 def list_group_files(game_dir: str, group_name: str) -> None:
-    """List all files in a specific pack group."""
     game_path = Path(game_dir)
     pamt_path = game_path / group_name / "0.pamt"
 
