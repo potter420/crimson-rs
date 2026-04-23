@@ -62,6 +62,50 @@ pub fn parse_iteminfo_from_bytes_inner(py: Python<'_>, data: &[u8]) -> PyResult<
 }
 
 #[pyfunction]
+pub fn parse_iteminfo_tracked(py: Python<'_>, data: &[u8]) -> PyResult<Py<PyAny>> {
+    use crate::binary::{BinaryReadTracked, FieldRange};
+
+    let mut offset = 0;
+    let mut py_items = Vec::new();
+    let mut py_spans = Vec::new();
+
+    while offset + 8 < data.len() {
+        let start = offset;
+        let mut path_buf = String::new();
+        let mut ranges: Vec<FieldRange> = Vec::new();
+
+        match ItemInfo::read_tracked(data, &mut offset, &mut path_buf, &mut ranges) {
+            Ok(item) => {
+                py_items.push(to_py_item(py, &item)?);
+
+                let span = PyDict::new(py);
+                span.set_item("start", start)?;
+                span.set_item("end", offset)?;
+                span.set_item("size", offset - start)?;
+
+                let py_ranges = PyList::empty(py);
+                for r in &ranges {
+                    let rd = PyDict::new(py);
+                    rd.set_item("path", &r.path)?;
+                    rd.set_item("start", r.start + start)?;
+                    rd.set_item("end", r.end + start)?;
+                    rd.set_item("ty", r.ty)?;
+                    py_ranges.append(rd)?;
+                }
+                span.set_item("ranges", py_ranges)?;
+                py_spans.push(span.into_any().unbind());
+            }
+            Err(_) => break,
+        }
+    }
+
+    let result = PyDict::new(py);
+    result.set_item("items", PyList::new(py, py_items)?)?;
+    result.set_item("spans", PyList::new(py, py_spans)?)?;
+    Ok(result.into_any().unbind())
+}
+
+#[pyfunction]
 pub fn write_iteminfo_to_file(items: &Bound<'_, PyList>, path: &str) -> PyResult<()> {
     let data = serialize_iteminfo_impl(items)?;
     std::fs::write(path, data)
@@ -634,6 +678,7 @@ pub fn extract_file(
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_iteminfo_from_file, m)?)?;
     m.add_function(wrap_pyfunction!(parse_iteminfo_from_bytes, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_iteminfo_tracked, m)?)?;
     m.add_function(wrap_pyfunction!(write_iteminfo_to_file, m)?)?;
     m.add_function(wrap_pyfunction!(serialize_iteminfo, m)?)?;
     m.add_function(wrap_pyfunction!(parse_papgt_file, m)?)?;
