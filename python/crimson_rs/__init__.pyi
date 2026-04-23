@@ -329,6 +329,22 @@ class DockingChildData(TypedDict):
     disable_collision_with_other_gimmick: int
     """u8"""
     docking_slot_key: str
+    inherit_summoner: int
+    """u8"""
+    summon_tag_name_hash: list[int]
+    """[u32; 4] - 4 ints."""
+
+
+class PatternParamString(TypedDict):
+    flag: int
+    """u8"""
+    param_string: str
+
+
+class PatternDescriptionData(TypedDict):
+    pattern_description_info: int
+    """u32"""
+    param_string_list: list[PatternParamString]
 
 
 # ── ItemInfo ────────────────────────────────────────────────────────────────
@@ -396,6 +412,10 @@ class ItemInfo(TypedDict):
     """u8"""
     extract_multi_change_info: int
     """MultiChangeKey (u32)."""
+    extract_additional_drop_set_info: int
+    """u32"""
+    minimum_extract_enchant_level: int
+    """u16"""
     item_memo: str
     filter_type: str
     gimmick_info: int
@@ -440,6 +460,8 @@ class ItemInfo(TypedDict):
     """u8"""
     is_destroy_when_broken: int
     """u8"""
+    is_housing_only: int
+    """u8"""
     quick_slot_index: int
     """u8"""
     reserve_slot_target_data_list: list[ReserveSlotTargetData]
@@ -456,6 +478,7 @@ class ItemInfo(TypedDict):
     price_list: list[ItemPriceInfo]
     docking_child_data: DockingChildData | None
     inventory_change_data: InventoryChangeData | None
+    unk_texture_path: str
     fixed_page_data_list: list[PageData]
     dynamic_page_data_list: list[PageData]
     inspect_data_list: list[InspectData]
@@ -463,10 +486,20 @@ class ItemInfo(TypedDict):
     default_sub_item: SubItem
     cooltime: int
     """i64"""
+    unk_post_cooltime_a: int
+    """i64"""
+    unk_post_cooltime_b: int
+    """i64"""
     item_charge_type: int
+    """u8"""
+    usable_alert_type: int
     """u8"""
     sharpness_data: ItemInfoSharpnessData
     max_charged_useable_count: int
+    """u32"""
+    unk_post_max_charged_a: int
+    """u32"""
+    unk_post_max_charged_b: int
     """u32"""
     hackable_character_group_info_list: list[int]
     """CharacterGroupKey list (u16)."""
@@ -488,13 +521,12 @@ class ItemInfo(TypedDict):
     """ItemKey (u32)."""
     convert_item_info_by_drop_npc: int
     """ItemKey (u32)."""
+    pattern_description_data_list: list[PatternDescriptionData]
     look_detail_game_advice_info_wrapper: int
     """GameAdviceInfoKey (u32)."""
     look_detail_mission_info: int
     """MissionKey (u32)."""
     enable_alert_system_to_ui: int
-    """u8"""
-    usable_alert: int
     """u8"""
     is_save_game_data_at_use_item: int
     """u8"""
@@ -510,6 +542,10 @@ class ItemInfo(TypedDict):
     is_blocked_store_sell: int
     """u8"""
     is_preorder_item: int
+    """u8"""
+    is_has_item_use_data_inventory_buff: int
+    """u8"""
+    is_preserved_on_extract: int
     """u8"""
     respawn_time_seconds: int
     """i64"""
@@ -548,6 +584,42 @@ def parse_iteminfo_from_bytes(data: bytes) -> list[ItemInfo]:
 
     Raises:
         ValueError: On parse errors.
+    """
+    ...
+
+
+class FieldRange(TypedDict):
+    path: str
+    """Dot-separated field path (e.g. "key", "enchant_data_list.0.level")."""
+    start: int
+    """Byte offset start (absolute)."""
+    end: int
+    """Byte offset end (absolute)."""
+    ty: str
+    """Rust type name."""
+
+
+class ItemSpan(TypedDict):
+    start: int
+    """Byte offset of the item start."""
+    end: int
+    """Byte offset of the item end."""
+    size: int
+    """Total byte size of the item."""
+    ranges: list[FieldRange]
+
+
+class TrackedItemInfo(TypedDict):
+    items: list[ItemInfo]
+    spans: list[ItemSpan]
+
+
+def parse_iteminfo_tracked(data: bytes) -> TrackedItemInfo:
+    """Parse all items with byte-level field attribution.
+
+    Returns:
+        Dict with "items" (list of ItemInfo) and "spans" (list of per-item
+        byte ranges for every field).
     """
     ...
 
