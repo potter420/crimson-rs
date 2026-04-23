@@ -3,6 +3,12 @@ name: Build and Publish Wheels
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual run'
+        required: true
+        default: 'Deploy wheels'
 
 permissions:
   contents: write
