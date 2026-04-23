@@ -128,7 +128,7 @@ mod tests {
     use super::*;
 
     const BINARY_PATH: &str =
-        "/mnt/e/OpensourceGame/CrimsonDesert/Godmod/backups/iteminfo_1.0.1.0_update.pabgb";
+        "/mnt/e/OpensourceGame/CrimsonDesert/Godmod/backups/iteminfo_1.0.4.0.pabgb";
 
     fn load_binary() -> Vec<u8> {
         std::fs::read(BINARY_PATH).expect("binary file not found")
@@ -141,13 +141,13 @@ mod tests {
         let item = ItemInfo::read_from(&data, &mut offset).unwrap();
         assert_eq!(item.key, ItemKey(2200));
         assert_eq!(item.string_key.data, "Pyeonjeon_Arrow");
-        assert_eq!(offset, 0x247, "unexpected size for first item");
+        assert_eq!(offset, 0x00000270, "unexpected size for first item");
     }
 
     #[test]
     fn test_parse_second_item() {
         let data = load_binary();
-        let mut offset = 0x247;
+        let mut offset = 0x00000270;
         let item = ItemInfo::read_from(&data, &mut offset).unwrap();
         assert_ne!(item.key, ItemKey(0));
         println!(

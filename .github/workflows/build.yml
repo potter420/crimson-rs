@@ -44,7 +44,7 @@ jobs:
       - name: Update develop release
         uses: ncipollo/release-action@v1
         with:
-          tag: develop
+          tag: v1.0.4.x
           name: Development Build
           body: |
             Latest development wheels built from `main`.

@@ -249,7 +249,7 @@ py_binary_struct! {
 
 py_binary_struct! {
     pub struct PatternParamString<'a> {
-        pub flag u8;
+        pub flag: u8,
         pub param_string: CString<'a>,
     }
 }
