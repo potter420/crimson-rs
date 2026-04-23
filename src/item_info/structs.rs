@@ -248,9 +248,16 @@ py_binary_struct! {
 }
 
 py_binary_struct! {
+    pub struct PatternParamString<'a> {
+        pub flag u8;
+        pub param_string: CString<'a>,
+    }
+}
+
+py_binary_struct! {
     pub struct PatternDescriptionData<'a> {
         pub pattern_description_info: u32,
-        pub param_string_list: CArray<CString<'a>>,
+        pub param_string_list: CArray<PatternParamString<'a>>,
     }
 }
 
