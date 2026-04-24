@@ -11,6 +11,14 @@ use super::{
 pub struct CString<'a> {
     pub length: u32,
     pub data: &'a str,
+    raw: Option<&'a [u8]>,
+}
+
+impl<'a> CString<'a> {
+    /// Return the original bytes (preserves non-UTF-8 data for roundtrip).
+    pub fn as_bytes(&self) -> &[u8] {
+        self.raw.unwrap_or(self.data.as_bytes())
+    }
 }
 
 impl<'a> BinaryRead<'a> for CString<'a> {
@@ -19,17 +27,26 @@ impl<'a> BinaryRead<'a> for CString<'a> {
         let len = length as usize;
         check_remaining(data, *offset, len)?;
         let bytes = &data[*offset..*offset + len];
-        let s = std::str::from_utf8(bytes)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         *offset += len;
-        Ok(CString { length, data: s })
+        match std::str::from_utf8(bytes) {
+            Ok(s) => Ok(CString { length, data: s, raw: None }),
+            Err(_) => {
+                let lossy = String::from_utf8_lossy(bytes);
+                // Leak the lossy string so we get a &'a str.
+                // This is acceptable because pabgb data lives for
+                // the duration of parsing and the leaked strings
+                // are tiny (item names / descriptions).
+                let leaked: &'a str = Box::leak(lossy.into_owned().into_boxed_str());
+                Ok(CString { length, data: leaked, raw: Some(bytes) })
+            }
+        }
     }
 }
 
 impl BinaryWrite for CString<'_> {
     fn write_to(&self, w: &mut dyn Write) -> io::Result<()> {
         self.length.write_to(w)?;
-        w.write_all(self.data.as_bytes())
+        w.write_all(self.as_bytes())
     }
 }
 
@@ -57,8 +74,6 @@ impl<'a> BinaryReadTracked<'a> for CString<'a> {
         let len = length as usize;
         check_remaining(data, *offset, len)?;
         let bytes = &data[*offset..*offset + len];
-        let s = std::str::from_utf8(bytes)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         *offset += len;
         ranges.push(FieldRange {
             path: path.clone(),
@@ -66,7 +81,14 @@ impl<'a> BinaryReadTracked<'a> for CString<'a> {
             end: *offset,
             ty: "CString",
         });
-        Ok(CString { length, data: s })
+        match std::str::from_utf8(bytes) {
+            Ok(s) => Ok(CString { length, data: s, raw: None }),
+            Err(_) => {
+                let lossy = String::from_utf8_lossy(bytes);
+                let leaked: &'a str = Box::leak(lossy.into_owned().into_boxed_str());
+                Ok(CString { length, data: leaked, raw: Some(bytes) })
+            }
+        }
     }
 }
 
