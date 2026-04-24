@@ -1,10 +1,10 @@
+use pyo3::exceptions::{PyIOError, PyKeyError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};
-use pyo3::exceptions::{PyIOError, PyKeyError, PyValueError};
 
-use crate::binary::*;
-use crate::binary::papgt::PackGroupTreeMeta;
 use crate::binary::pamt::PackMeta;
+use crate::binary::papgt::PackGroupTreeMeta;
+use crate::binary::*;
 use crate::item_info::ItemInfo;
 
 // ── Dict helpers ───────────────────────────────────────────────────────────
@@ -38,8 +38,7 @@ fn wr_item(w: &mut Vec<u8>, obj: &Bound<'_, PyAny>) -> PyResult<()> {
 
 #[pyfunction]
 pub fn parse_iteminfo_from_file(py: Python<'_>, path: &str) -> PyResult<Py<PyAny>> {
-    let data = std::fs::read(path)
-        .map_err(|e| PyIOError::new_err(e.to_string()))?;
+    let data = std::fs::read(path).map_err(|e| PyIOError::new_err(e.to_string()))?;
     parse_iteminfo_from_bytes_inner(py, &data)
 }
 
@@ -52,10 +51,9 @@ pub fn parse_iteminfo_from_bytes_inner(py: Python<'_>, data: &[u8]) -> PyResult<
     let mut offset = 0;
     let mut items = Vec::new();
     while offset < data.len() {
-        let item = ItemInfo::read_from(data, &mut offset)
-            .map_err(|e| PyValueError::new_err(
-                format!("parse error at offset 0x{:08X}: {}", offset, e),
-            ))?;
+        let item = ItemInfo::read_from(data, &mut offset).map_err(|e| {
+            PyValueError::new_err(format!("parse error at offset 0x{:08X}: {}", offset, e))
+        })?;
         items.push(to_py_item(py, &item)?);
     }
     Ok(PyList::new(py, items)?.into_any().unbind())
@@ -108,8 +106,7 @@ pub fn parse_iteminfo_tracked(py: Python<'_>, data: &[u8]) -> PyResult<Py<PyAny>
 #[pyfunction]
 pub fn write_iteminfo_to_file(items: &Bound<'_, PyList>, path: &str) -> PyResult<()> {
     let data = serialize_iteminfo_impl(items)?;
-    std::fs::write(path, data)
-        .map_err(|e| PyIOError::new_err(e.to_string()))
+    std::fs::write(path, data).map_err(|e| PyIOError::new_err(e.to_string()))
 }
 
 #[pyfunction]
@@ -128,7 +125,10 @@ pub fn serialize_iteminfo_impl(items: &Bound<'_, PyList>) -> PyResult<Vec<u8>> {
 
 // ── PAPGT to/from Python ───────────────────────────────────────────────────
 
-pub fn to_py_papgt<'py>(py: Python<'py>, papgt: &PackGroupTreeMeta) -> PyResult<Bound<'py, PyDict>> {
+pub fn to_py_papgt<'py>(
+    py: Python<'py>,
+    papgt: &PackGroupTreeMeta,
+) -> PyResult<Bound<'py, PyDict>> {
     let d = PyDict::new(py);
     d.set_item("unknown0", papgt.header.unknown0)?;
     d.set_item("checksum", papgt.header.checksum)?;
@@ -207,13 +207,14 @@ pub fn wr_papgt_from_dict(d: &Bound<'_, PyDict>) -> PyResult<Vec<u8>> {
         group_names_buffer,
     };
 
-    papgt.to_bytes().map_err(|e| PyIOError::new_err(e.to_string()))
+    papgt
+        .to_bytes()
+        .map_err(|e| PyIOError::new_err(e.to_string()))
 }
 
 #[pyfunction]
 pub fn parse_papgt_file(py: Python<'_>, path: &str) -> PyResult<Py<PyAny>> {
-    let data = std::fs::read(path)
-        .map_err(|e| PyIOError::new_err(e.to_string()))?;
+    let data = std::fs::read(path).map_err(|e| PyIOError::new_err(e.to_string()))?;
     parse_papgt_bytes_inner(py, &data)
 }
 
@@ -223,16 +224,14 @@ pub fn parse_papgt_bytes(py: Python<'_>, data: &[u8]) -> PyResult<Py<PyAny>> {
 }
 
 pub fn parse_papgt_bytes_inner(py: Python<'_>, data: &[u8]) -> PyResult<Py<PyAny>> {
-    let papgt = PackGroupTreeMeta::parse(data)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let papgt = PackGroupTreeMeta::parse(data).map_err(|e| PyValueError::new_err(e.to_string()))?;
     Ok(to_py_papgt(py, &papgt)?.into_any().unbind())
 }
 
 #[pyfunction]
 pub fn write_papgt_file(data: &Bound<'_, PyDict>, path: &str) -> PyResult<()> {
     let bytes = wr_papgt_from_dict(data)?;
-    std::fs::write(path, bytes)
-        .map_err(|e| PyIOError::new_err(e.to_string()))
+    std::fs::write(path, bytes).map_err(|e| PyIOError::new_err(e.to_string()))
 }
 
 #[pyfunction]
@@ -298,16 +297,21 @@ pub fn to_py_pamt<'py>(py: Python<'py>, pamt: &PackMeta) -> PyResult<Bound<'py, 
     d.set_item("directories", dirs)?;
 
     // Raw trie buffers for roundtrip writing
-    d.set_item("_dir_names_buffer", PyBytes::new(py, &pamt.dir_names_buffer))?;
-    d.set_item("_file_names_buffer", PyBytes::new(py, &pamt.file_names_buffer))?;
+    d.set_item(
+        "_dir_names_buffer",
+        PyBytes::new(py, &pamt.dir_names_buffer),
+    )?;
+    d.set_item(
+        "_file_names_buffer",
+        PyBytes::new(py, &pamt.file_names_buffer),
+    )?;
 
     Ok(d)
 }
 
 #[pyfunction]
 pub fn parse_pamt_file(py: Python<'_>, path: &str) -> PyResult<Py<PyAny>> {
-    let data = std::fs::read(path)
-        .map_err(|e| PyIOError::new_err(e.to_string()))?;
+    let data = std::fs::read(path).map_err(|e| PyIOError::new_err(e.to_string()))?;
     parse_pamt_bytes_inner(py, &data)
 }
 
@@ -317,16 +321,14 @@ pub fn parse_pamt_bytes(py: Python<'_>, data: &[u8]) -> PyResult<Py<PyAny>> {
 }
 
 pub fn parse_pamt_bytes_inner(py: Python<'_>, data: &[u8]) -> PyResult<Py<PyAny>> {
-    let pamt = PackMeta::parse(data, None)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let pamt = PackMeta::parse(data, None).map_err(|e| PyValueError::new_err(e.to_string()))?;
     Ok(to_py_pamt(py, &pamt)?.into_any().unbind())
 }
 
 #[pyfunction]
 pub fn write_pamt_file(data: &Bound<'_, PyDict>, path: &str) -> PyResult<()> {
     let bytes = wr_pamt_from_dict(data)?;
-    std::fs::write(path, bytes)
-        .map_err(|e| PyIOError::new_err(e.to_string()))
+    std::fs::write(path, bytes).map_err(|e| PyIOError::new_err(e.to_string()))
 }
 
 #[pyfunction]
@@ -344,7 +346,8 @@ pub fn wr_pamt_from_dict(d: &Bound<'_, PyDict>) -> PyResult<Vec<u8>> {
     let ei_obj = get_obj(d, "encrypt_info")?.cast::<PyDict>()?.clone();
     let ei_unknown0: u8 = get(&ei_obj, "unknown0")?;
     let ei_bytes: Vec<u8> = get(&ei_obj, "encrypt_info")?;
-    let encrypt_info_arr: [u8; 3] = ei_bytes.try_into()
+    let encrypt_info_arr: [u8; 3] = ei_bytes
+        .try_into()
         .map_err(|_| PyValueError::new_err("encrypt_info must be 3 bytes"))?;
 
     let chunks_list = get_obj(d, "chunks")?.cast::<PyList>()?.clone();
@@ -413,12 +416,16 @@ pub fn wr_pamt_from_dict(d: &Bound<'_, PyDict>) -> PyResult<Vec<u8>> {
         raw_files,
     };
 
-    pamt.to_bytes().map_err(|e| PyIOError::new_err(e.to_string()))
+    pamt.to_bytes()
+        .map_err(|e| PyIOError::new_err(e.to_string()))
 }
 
 // ── Localization to/from Python ────────────────────────────────────────────
 
-fn to_py_paloc_entry<'py>(py: Python<'py>, entry: &crate::binary::paloc::LocalizationEntry) -> PyResult<Bound<'py, PyDict>> {
+fn to_py_paloc_entry<'py>(
+    py: Python<'py>,
+    entry: &crate::binary::paloc::LocalizationEntry,
+) -> PyResult<Bound<'py, PyDict>> {
     let d = PyDict::new(py);
     d.set_item("unk_id", entry.unk_id)?;
     d.set_item("string_key", entry.string_key.data)?;
@@ -453,14 +460,22 @@ fn serialize_paloc_impl(items: &Bound<'_, PyList>) -> PyResult<Vec<u8>> {
         let string_key: String = get(d, "string_key")?;
         let string_value: String = get(d, "string_value")?;
 
-        unk_id.write_to(&mut buf).map_err(|e| PyIOError::new_err(e.to_string()))?;
-        (string_key.len() as u32).write_to(&mut buf).map_err(|e| PyIOError::new_err(e.to_string()))?;
+        unk_id
+            .write_to(&mut buf)
+            .map_err(|e| PyIOError::new_err(e.to_string()))?;
+        (string_key.len() as u32)
+            .write_to(&mut buf)
+            .map_err(|e| PyIOError::new_err(e.to_string()))?;
         buf.extend_from_slice(string_key.as_bytes());
-        (string_value.len() as u32).write_to(&mut buf).map_err(|e| PyIOError::new_err(e.to_string()))?;
+        (string_value.len() as u32)
+            .write_to(&mut buf)
+            .map_err(|e| PyIOError::new_err(e.to_string()))?;
         buf.extend_from_slice(string_value.as_bytes());
     }
     let count = items.len() as u32;
-    count.write_to(&mut buf).map_err(|e| PyIOError::new_err(e.to_string()))?;
+    count
+        .write_to(&mut buf)
+        .map_err(|e| PyIOError::new_err(e.to_string()))?;
     Ok(buf)
 }
 
@@ -475,31 +490,45 @@ pub fn calculate_checksum(data: &[u8]) -> u32 {
 
 #[pyfunction]
 pub fn compress_data(py: Python<'_>, data: &[u8], compression: u8) -> PyResult<Py<PyAny>> {
-    use crate::binary::paz;
     use crate::binary::pamt::Compression;
+    use crate::binary::paz;
 
     let comp = match compression {
         0 => Compression::None,
         2 => Compression::Lz4,
         3 => Compression::Zlib,
-        _ => return Err(PyValueError::new_err(format!("unsupported compression: {}", compression))),
+        _ => {
+            return Err(PyValueError::new_err(format!(
+                "unsupported compression: {}",
+                compression
+            )));
+        }
     };
 
-    let result = paz::compress(data, comp)
-        .map_err(|e| PyIOError::new_err(e.to_string()))?;
+    let result = paz::compress(data, comp).map_err(|e| PyIOError::new_err(e.to_string()))?;
     Ok(PyBytes::new(py, &result).into_any().unbind())
 }
 
 #[pyfunction]
-pub fn decompress_data(py: Python<'_>, data: &[u8], compression: u8, uncompressed_size: usize) -> PyResult<Py<PyAny>> {
-    use crate::binary::paz;
+pub fn decompress_data(
+    py: Python<'_>,
+    data: &[u8],
+    compression: u8,
+    uncompressed_size: usize,
+) -> PyResult<Py<PyAny>> {
     use crate::binary::pamt::Compression;
+    use crate::binary::paz;
 
     let comp = match compression {
         0 => Compression::None,
         2 => Compression::Lz4,
         3 => Compression::Zlib,
-        _ => return Err(PyValueError::new_err(format!("unsupported compression: {}", compression))),
+        _ => {
+            return Err(PyValueError::new_err(format!(
+                "unsupported compression: {}",
+                compression
+            )));
+        }
     };
 
     let result = paz::decompress(data, comp, uncompressed_size)
@@ -515,7 +544,10 @@ fn parse_compression(compression: u8) -> PyResult<crate::binary::pamt::Compressi
         0 => Ok(Compression::None),
         2 => Ok(Compression::Lz4),
         3 => Ok(Compression::Zlib),
-        _ => Err(PyValueError::new_err(format!("unsupported compression: {}", compression))),
+        _ => Err(PyValueError::new_err(format!(
+            "unsupported compression: {}",
+            compression
+        ))),
     }
 }
 
@@ -524,7 +556,10 @@ fn parse_crypto(crypto: u8) -> PyResult<crate::binary::pamt::CryptoType> {
     match crypto {
         0 => Ok(CryptoType::None),
         3 => Ok(CryptoType::ChaCha20),
-        _ => Err(PyValueError::new_err(format!("unsupported crypto: {}", crypto))),
+        _ => Err(PyValueError::new_err(format!(
+            "unsupported crypto: {}",
+            crypto
+        ))),
     }
 }
 
@@ -553,12 +588,12 @@ impl PyPackGroupBuilder {
     ) -> PyResult<Self> {
         let comp = parse_compression(compression)?;
         let cry = parse_crypto(crypto)?;
-        let ei: [u8; 3] = encrypt_info.try_into()
+        let ei: [u8; 3] = encrypt_info
+            .try_into()
             .map_err(|_| PyValueError::new_err("encrypt_info must be 3 bytes"))?;
 
         // Create output directory if it doesn't exist
-        std::fs::create_dir_all(output_dir)
-            .map_err(|e| PyIOError::new_err(e.to_string()))?;
+        std::fs::create_dir_all(output_dir).map_err(|e| PyIOError::new_err(e.to_string()))?;
 
         let builder = crate::binary::paz::PackGroupBuilder::new(
             std::path::Path::new(output_dir),
@@ -568,31 +603,47 @@ impl PyPackGroupBuilder {
             max_chunk_size,
         );
 
-        Ok(PyPackGroupBuilder { inner: Some(builder) })
+        Ok(PyPackGroupBuilder {
+            inner: Some(builder),
+        })
     }
 
     /// Add a file from raw bytes.
     fn add_file(&mut self, dir_path: &str, file_name: &str, data: &[u8]) -> PyResult<()> {
-        let builder = self.inner.as_mut()
+        let builder = self
+            .inner
+            .as_mut()
             .ok_or_else(|| PyValueError::new_err("builder already finished"))?;
-        builder.add_file(dir_path, file_name, data)
+        builder
+            .add_file(dir_path, file_name, data)
             .map_err(|e| PyIOError::new_err(e.to_string()))
     }
 
     /// Add a file by reading from a path on disk.
-    fn add_file_from_path(&mut self, dir_path: &str, file_name: &str, file_path: &str) -> PyResult<()> {
-        let builder = self.inner.as_mut()
+    fn add_file_from_path(
+        &mut self,
+        dir_path: &str,
+        file_name: &str,
+        file_path: &str,
+    ) -> PyResult<()> {
+        let builder = self
+            .inner
+            .as_mut()
             .ok_or_else(|| PyValueError::new_err("builder already finished"))?;
-        builder.add_file_from_path(dir_path, file_name, std::path::Path::new(file_path))
+        builder
+            .add_file_from_path(dir_path, file_name, std::path::Path::new(file_path))
             .map_err(|e| PyIOError::new_err(e.to_string()))
     }
 
     /// Finish building: flush remaining chunk, write 0.pamt.
     /// Returns the raw PAMT bytes (for computing checksum for PAPGT).
     fn finish(&mut self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let builder = self.inner.take()
+        let builder = self
+            .inner
+            .take()
             .ok_or_else(|| PyValueError::new_err("builder already finished"))?;
-        let pamt_bytes = builder.finish()
+        let pamt_bytes = builder
+            .finish()
             .map_err(|e| PyIOError::new_err(e.to_string()))?;
         Ok(PyBytes::new(py, &pamt_bytes).into_any().unbind())
     }
@@ -613,17 +664,18 @@ pub fn add_papgt_entry(
 ) -> PyResult<Py<PyAny>> {
     // Reconstruct the PackGroupTreeMeta from the dict
     let bytes = wr_papgt_from_dict(papgt_data)?;
-    let mut papgt = PackGroupTreeMeta::parse(&bytes)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let mut papgt =
+        PackGroupTreeMeta::parse(&bytes).map_err(|e| PyValueError::new_err(e.to_string()))?;
 
     papgt.add_entry(group_name, pack_meta_checksum, is_optional, language);
 
-    let new_bytes = papgt.to_bytes()
+    let new_bytes = papgt
+        .to_bytes()
         .map_err(|e| PyIOError::new_err(e.to_string()))?;
 
     // Re-parse to get the dict representation
-    let new_papgt = PackGroupTreeMeta::parse(&new_bytes)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let new_papgt =
+        PackGroupTreeMeta::parse(&new_bytes).map_err(|e| PyValueError::new_err(e.to_string()))?;
 
     Ok(to_py_papgt(py, &new_papgt)?.into_any().unbind())
 }
@@ -642,29 +694,39 @@ pub fn extract_file(
     dir_path: &str,
     file_name: &str,
 ) -> PyResult<Py<PyAny>> {
-    use std::path::Path;
     use crate::binary::paz;
+    use std::path::Path;
 
     let group_dir = Path::new(game_dir).join(group_name);
     let pamt_path = group_dir.join("0.pamt");
 
     let pamt_data = std::fs::read(&pamt_path)
         .map_err(|e| PyIOError::new_err(format!("{}: {}", pamt_path.display(), e)))?;
-    let pamt = PackMeta::parse(&pamt_data, None)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let pamt =
+        PackMeta::parse(&pamt_data, None).map_err(|e| PyValueError::new_err(e.to_string()))?;
 
     // Find the directory and file
-    let dir = pamt.directories.iter()
+    let dir = pamt
+        .directories
+        .iter()
         .find(|d| d.path == dir_path)
-        .ok_or_else(|| PyValueError::new_err(
-            format!("directory '{}' not found in {}/{}", dir_path, group_name, "0.pamt"),
-        ))?;
+        .ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "directory '{}' not found in {}/{}",
+                dir_path, group_name, "0.pamt"
+            ))
+        })?;
 
-    let file = dir.files.iter()
+    let file = dir
+        .files
+        .iter()
         .find(|f| f.name == file_name)
-        .ok_or_else(|| PyValueError::new_err(
-            format!("file '{}' not found in directory '{}'", file_name, dir_path),
-        ))?;
+        .ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "file '{}' not found in directory '{}'",
+                file_name, dir_path
+            ))
+        })?;
 
     let encrypt_info = pamt.header.encrypt_info.encrypt_info;
     let raw = paz::extract_file(&group_dir, file, dir_path, &encrypt_info)

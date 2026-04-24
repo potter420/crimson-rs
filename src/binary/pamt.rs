@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 
-use super::{BinaryRead, BinaryWrite, check_remaining};
 use super::trie::TrieStringBuffer;
+use super::{BinaryRead, BinaryWrite, check_remaining};
 use crate::binary_struct;
 use crate::crypto::checksum;
 
@@ -179,7 +179,10 @@ impl PackMeta {
         if header.unknown0 != 0 {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("PackMetaHeader.unknown0 expected 0, got {}", header.unknown0),
+                format!(
+                    "PackMetaHeader.unknown0 expected 0, got {}",
+                    header.unknown0
+                ),
             ));
         }
 
@@ -212,7 +215,8 @@ impl PackMeta {
 
         // Read file names trie buffer
         check_remaining(data, offset, 4)?;
-        let file_buf_len = u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
+        let file_buf_len =
+            u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
         offset += 4;
         check_remaining(data, offset, file_buf_len)?;
         let file_names_buffer = data[offset..offset + file_buf_len].to_vec();
@@ -264,7 +268,13 @@ impl PackMeta {
             if end > raw_files.len() {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!("Directory '{}' file range {}..{} exceeds file count {}", dir_path, start, end, raw_files.len()),
+                    format!(
+                        "Directory '{}' file range {}..{} exceeds file count {}",
+                        dir_path,
+                        start,
+                        end,
+                        raw_files.len()
+                    ),
                 ));
             }
 
@@ -273,7 +283,10 @@ impl PackMeta {
                 if raw_file.unknown0 != 0 {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidData,
-                        format!("PackMetaFile.unknown0 expected 0, got {}", raw_file.unknown0),
+                        format!(
+                            "PackMetaFile.unknown0 expected 0, got {}",
+                            raw_file.unknown0
+                        ),
                     ));
                 }
 
@@ -306,7 +319,10 @@ impl PackMeta {
                     unknown0: raw_file.unknown0,
                 });
 
-                resolved_files.push(ResolvedFile { name: file_name, file });
+                resolved_files.push(ResolvedFile {
+                    name: file_name,
+                    file,
+                });
             }
 
             directories.push(ResolvedDirectory {

@@ -1,11 +1,11 @@
-mod primitives;
-mod types;
 mod arrays;
-pub(crate) mod trie;
-pub(crate) mod papgt;
-pub(crate) mod pamt;
-pub(crate) mod paz;
 pub(crate) mod paloc;
+pub(crate) mod pamt;
+pub(crate) mod papgt;
+pub(crate) mod paz;
+mod primitives;
+pub(crate) mod trie;
+mod types;
 
 pub use types::*;
 
@@ -79,7 +79,10 @@ pub(crate) fn pop_path(path: &mut String, saved: usize) {
 
 pub(crate) fn check_remaining(data: &[u8], offset: usize, need: usize) -> io::Result<()> {
     if offset + need > data.len() {
-        Err(io::Error::new(io::ErrorKind::UnexpectedEof, "not enough data"))
+        Err(io::Error::new(
+            io::ErrorKind::UnexpectedEof,
+            "not enough data",
+        ))
     } else {
         Ok(())
     }

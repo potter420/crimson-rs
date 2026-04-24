@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-use super::{BinaryRead, BinaryReadTracked, BinaryWrite, FieldRange, push_index, pop_path};
+use super::{BinaryRead, BinaryReadTracked, BinaryWrite, FieldRange, pop_path, push_index};
 
 impl<'a> BinaryRead<'a> for [f32; 3] {
     fn read_from(data: &'a [u8], offset: &mut usize) -> io::Result<Self> {
@@ -13,6 +13,21 @@ impl<'a> BinaryRead<'a> for [f32; 3] {
 }
 
 impl BinaryWrite for [f32; 3] {
+    fn write_to(&self, w: &mut dyn Write) -> io::Result<()> {
+        for v in self {
+            v.write_to(w)?;
+        }
+        Ok(())
+    }
+}
+
+impl<'a> BinaryRead<'a> for [u32; 2] {
+    fn read_from(data: &'a [u8], offset: &mut usize) -> io::Result<Self> {
+        Ok([u32::read_from(data, offset)?, u32::read_from(data, offset)?])
+    }
+}
+
+impl BinaryWrite for [u32; 2] {
     fn write_to(&self, w: &mut dyn Write) -> io::Result<()> {
         for v in self {
             v.write_to(w)?;
@@ -85,6 +100,23 @@ impl<'a> BinaryReadTracked<'a> for [u32; 4] {
     ) -> io::Result<Self> {
         let mut out = [0u32; 4];
         for i in 0..4 {
+            let saved = push_index(path, i);
+            out[i] = u32::read_tracked(data, offset, path, ranges)?;
+            pop_path(path, saved);
+        }
+        Ok(out)
+    }
+}
+
+impl<'a> BinaryReadTracked<'a> for [u32; 2] {
+    fn read_tracked(
+        data: &'a [u8],
+        offset: &mut usize,
+        path: &mut String,
+        ranges: &mut Vec<FieldRange>,
+    ) -> io::Result<Self> {
+        let mut out = [0u32; 2];
+        for i in 0..2 {
             let saved = push_index(path, i);
             out[i] = u32::read_tracked(data, offset, path, ranges)?;
             pop_path(path, saved);

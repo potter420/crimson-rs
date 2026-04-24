@@ -1,6 +1,6 @@
+use pyo3::exceptions::PyKeyError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
-use pyo3::exceptions::PyKeyError;
 
 use crate::binary::{CArray, COptional, CString, LocalizableString};
 
@@ -78,6 +78,23 @@ impl WritePyValue for [f32; 3] {
         let list = obj.cast::<PyList>()?;
         for item in list.iter() {
             let v: f32 = item.extract()?;
+            w.extend_from_slice(&v.to_le_bytes());
+        }
+        Ok(())
+    }
+}
+
+impl ToPyValue for [u32; 2] {
+    fn to_py_value(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        Ok(self.to_vec().into_pyobject(py)?.into_any().unbind())
+    }
+}
+
+impl WritePyValue for [u32; 2] {
+    fn write_from_py(w: &mut Vec<u8>, obj: &Bound<'_, PyAny>) -> PyResult<()> {
+        let list = obj.cast::<PyList>()?;
+        for item in list.iter() {
+            let v: u32 = item.extract()?;
             w.extend_from_slice(&v.to_le_bytes());
         }
         Ok(())

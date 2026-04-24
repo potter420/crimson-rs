@@ -1,8 +1,8 @@
 use std::io::{self, Write};
 
-use super::{BinaryRead, BinaryWrite, check_remaining};
 #[allow(unused_imports)]
 use super::trie::read_cstring;
+use super::{BinaryRead, BinaryWrite, check_remaining};
 use crate::binary_struct;
 use crate::crypto::checksum;
 
@@ -169,16 +169,19 @@ impl PackGroupTreeMeta {
             entry.entry.group_name_offset += insert_len as u32;
         }
 
-        self.entries.insert(0, ResolvedEntry {
-            group_name: group_name.to_string(),
-            entry: PackGroupTreeMetaEntry {
-                is_optional,
-                language: LanguageType(language),
-                always_zero: 0,
-                group_name_offset: 0, // at the front of the buffer
-                pack_meta_checksum,
+        self.entries.insert(
+            0,
+            ResolvedEntry {
+                group_name: group_name.to_string(),
+                entry: PackGroupTreeMetaEntry {
+                    is_optional,
+                    language: LanguageType(language),
+                    always_zero: 0,
+                    group_name_offset: 0, // at the front of the buffer
+                    pack_meta_checksum,
+                },
             },
-        });
+        );
 
         self.header.entry_count = self.entries.len() as u8;
     }

@@ -15,19 +15,16 @@ pub fn crimson_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 mod tests {
     use crate::binary::BinaryRead;
     use crate::binary::BinaryWrite;
-    use crate::binary::papgt::PackGroupTreeMeta;
-    use crate::binary::pamt::PackMeta;
     use crate::binary::paloc::LocalizationFile;
+    use crate::binary::pamt::PackMeta;
+    use crate::binary::papgt::PackGroupTreeMeta;
     use crate::item_info::ItemInfo;
 
     const BINARY_PATH: &str =
-        "/mnt/e/OpensourceGame/CrimsonDesert/Godmod/backups/iteminfo_1.0.4.0.pabgb";
-    const PAPGT_PATH: &str =
-        "/mnt/e/OpensourceGame/CrimsonDesert/Crimson Browser/Original/0.papgt";
-    const PAMT_PATH: &str =
-        "/mnt/e/OpensourceGame/CrimsonDesert/Crimson Browser/Original/0.pamt";
-    const GAME_DIR: &str =
-        "/mnt/f/Program/Steam/steamapps/common/Crimson Desert";
+        "/mnt/e/OpensourceGame/CrimsonDesert/Godmod/backups/iteminfo_1.0.4.1.pabgb";
+    const PAPGT_PATH: &str = "/mnt/e/OpensourceGame/CrimsonDesert/Crimson Browser/Original/0.papgt";
+    const PAMT_PATH: &str = "/mnt/e/OpensourceGame/CrimsonDesert/Crimson Browser/Original/0.pamt";
+    const GAME_DIR: &str = "/mnt/f/Program/Steam/steamapps/common/Crimson Desert";
 
     #[test]
     fn test_full_roundtrip() {
@@ -78,7 +75,11 @@ mod tests {
     fn test_pamt_parse() {
         let data = std::fs::read(PAMT_PATH).expect("pamt file not found");
         let pamt = PackMeta::parse(&data, None).unwrap();
-        println!("PAMT: {} chunks, {} directories", pamt.chunks.len(), pamt.directories.len());
+        println!(
+            "PAMT: {} chunks, {} directories",
+            pamt.chunks.len(),
+            pamt.directories.len()
+        );
         for dir in &pamt.directories {
             println!("  dir={}, {} files", dir.path, dir.files.len());
             for f in dir.files.iter().take(3) {
@@ -105,18 +106,22 @@ mod tests {
     }
 
     fn extract_paloc_from_archive(group: &str, file_name: &str) -> Vec<u8> {
-        use std::path::Path;
         use crate::binary::paz;
+        use std::path::Path;
 
         let group_dir = Path::new(GAME_DIR).join(group);
         let pamt_data = std::fs::read(group_dir.join("0.pamt"))
             .unwrap_or_else(|e| panic!("{}/0.pamt: {}", group, e));
         let pamt = PackMeta::parse(&pamt_data, None).unwrap();
 
-        let dir = pamt.directories.iter()
+        let dir = pamt
+            .directories
+            .iter()
             .find(|d| d.path == "gamedata/stringtable/binary__")
             .expect("directory not found in pamt");
-        let file = dir.files.iter()
+        let file = dir
+            .files
+            .iter()
             .find(|f| f.name == file_name)
             .unwrap_or_else(|| panic!("{} not found", file_name));
 
@@ -125,7 +130,8 @@ mod tests {
             file,
             "gamedata/stringtable/binary__",
             &pamt.header.encrypt_info.encrypt_info,
-        ).unwrap()
+        )
+        .unwrap()
     }
 
     #[test]
@@ -162,9 +168,7 @@ mod tests {
             let preview: String = entry.string_value.data.chars().take(40).collect();
             println!(
                 "  id={}, key={}, value={}",
-                entry.unk_id,
-                entry.string_key.data,
-                preview,
+                entry.unk_id, entry.string_key.data, preview,
             );
         }
         assert!(!paloc.entries.is_empty(), "should have entries");
@@ -175,7 +179,11 @@ mod tests {
         let data = extract_paloc_from_archive("0019", "localizationstring_kor.paloc");
         let paloc = LocalizationFile::parse(&data).unwrap();
         let written = paloc.to_bytes().unwrap();
-        assert_eq!(written.len(), data.len(), "paloc kor roundtrip size mismatch");
+        assert_eq!(
+            written.len(),
+            data.len(),
+            "paloc kor roundtrip size mismatch"
+        );
         assert_eq!(written, data, "paloc kor roundtrip bytes mismatch");
     }
 
@@ -189,14 +197,15 @@ mod tests {
             .unwrap_or_else(|e| panic!("cannot read {}: {}", papgt_path.display(), e));
         let papgt = PackGroupTreeMeta::parse(&papgt_data).unwrap();
 
-        println!("Validating {} PAPGT entries against game directory...", papgt.entries.len());
+        println!(
+            "Validating {} PAPGT entries against game directory...",
+            papgt.entries.len()
+        );
 
         let mut validated = 0;
         let mut skipped = 0;
         for entry in &papgt.entries {
-            let pamt_path = Path::new(GAME_DIR)
-                .join(&entry.group_name)
-                .join("0.pamt");
+            let pamt_path = Path::new(GAME_DIR).join(&entry.group_name).join("0.pamt");
 
             if !pamt_path.exists() {
                 println!("  SKIP group={} (no 0.pamt found)", entry.group_name);
@@ -223,11 +232,17 @@ mod tests {
             PackMeta::parse(&pamt_data, Some(entry.entry.pack_meta_checksum))
                 .unwrap_or_else(|e| panic!("parse failed for group={}: {}", entry.group_name, e));
 
-            println!("  OK   group={}, checksum={:#010x}", entry.group_name, computed);
+            println!(
+                "  OK   group={}, checksum={:#010x}",
+                entry.group_name, computed
+            );
             validated += 1;
         }
 
         println!("Validated: {}, Skipped: {}", validated, skipped);
-        assert!(validated > 0, "should have validated at least one pamt file");
+        assert!(
+            validated > 0,
+            "should have validated at least one pamt file"
+        );
     }
 }

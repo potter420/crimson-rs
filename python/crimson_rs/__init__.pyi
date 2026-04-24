@@ -338,6 +338,10 @@ class DockingChildData(TypedDict):
 class PatternParamString(TypedDict):
     flag: int
     """u8"""
+    unk_flag_2: int
+    """u8"""
+    unk_value: list[int]
+    """[u32; 2] - 2 ints."""
     param_string: str
 
 

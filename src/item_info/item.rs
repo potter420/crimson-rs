@@ -128,7 +128,7 @@ mod tests {
     use super::*;
 
     const BINARY_PATH: &str =
-        "/mnt/e/OpensourceGame/CrimsonDesert/Godmod/backups/iteminfo_1.0.4.0.pabgb";
+        "/mnt/e/OpensourceGame/CrimsonDesert/Godmod/backups/iteminfo_1.0.4.1.pabgb";
 
     fn load_binary() -> Vec<u8> {
         std::fs::read(BINARY_PATH).expect("binary file not found")

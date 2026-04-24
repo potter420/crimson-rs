@@ -1,8 +1,8 @@
 use std::io::{self, Write};
 
 use super::{
-    BinaryRead, BinaryReadTracked, BinaryWrite, FieldRange, check_remaining,
-    push_index, push_path, pop_path,
+    BinaryRead, BinaryReadTracked, BinaryWrite, FieldRange, check_remaining, pop_path, push_index,
+    push_path,
 };
 
 // ── CString ─────────────────────────────────────────────────────────────────
@@ -87,11 +87,13 @@ impl<'a, T: BinaryRead<'a>> BinaryRead<'a> for CArray<T> {
         // attempt a multi-GB allocation before the actual read fails.
         let remaining = data.len().saturating_sub(*offset);
         if count > remaining {
-            return Err(io::Error::new(io::ErrorKind::InvalidData,
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
                 format!(
                     "CArray count {} exceeds remaining bytes {} at offset {}",
                     count, remaining, *offset,
-                )));
+                ),
+            ));
         }
         let mut items = Vec::with_capacity(count);
         for _ in 0..count {
@@ -133,11 +135,13 @@ impl<'a, T: BinaryReadTracked<'a>> BinaryReadTracked<'a> for CArray<T> {
         // Same sanity clamp as `BinaryRead` impl — see notes there.
         let remaining = data.len().saturating_sub(*offset);
         if count > remaining {
-            return Err(io::Error::new(io::ErrorKind::InvalidData,
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
                 format!(
                     "CArray count {} exceeds remaining bytes {} at offset {}",
                     count, remaining, *offset,
-                )));
+                ),
+            ));
         }
 
         let mut items = Vec::with_capacity(count);
@@ -223,7 +227,11 @@ impl<'a> BinaryRead<'a> for LocalizableString<'a> {
         let category = u8::read_from(data, offset)?;
         let index = u64::read_from(data, offset)?;
         let default = CString::read_from(data, offset)?;
-        Ok(LocalizableString { category, index, default })
+        Ok(LocalizableString {
+            category,
+            index,
+            default,
+        })
     }
 }
 
@@ -254,6 +262,10 @@ impl<'a> BinaryReadTracked<'a> for LocalizableString<'a> {
         let default = CString::read_tracked(data, offset, path, ranges)?;
         pop_path(path, saved);
 
-        Ok(LocalizableString { category, index, default })
+        Ok(LocalizableString {
+            category,
+            index,
+            default,
+        })
     }
 }

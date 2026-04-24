@@ -37,7 +37,11 @@ impl TrieStringBuffer {
         if o + 5 > self.data.len() {
             return Err(io::Error::new(
                 io::ErrorKind::UnexpectedEof,
-                format!("trie offset {} out of bounds (buf len {})", offset, self.data.len()),
+                format!(
+                    "trie offset {} out of bounds (buf len {})",
+                    offset,
+                    self.data.len()
+                ),
             ));
         }
 

@@ -23,8 +23,7 @@ macro_rules! define_key {
             ) -> io::Result<Self> {
                 // Delegate to the inner primitive's tracked read so the
                 // recorded range carries the correct path and byte span.
-                <$inner as BinaryReadTracked>::read_tracked(data, offset, path, ranges)
-                    .map($name)
+                <$inner as BinaryReadTracked>::read_tracked(data, offset, path, ranges).map($name)
             }
         }
 

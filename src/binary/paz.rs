@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 
 use super::pamt::*;
 use super::trie::build_trie_buffer;
-use crate::crypto::checksum;
 use crate::crypto::chacha20;
+use crate::crypto::checksum;
 
 // ── Compression ───────────────────────────────────────────────────────────
 
@@ -13,10 +13,8 @@ pub fn compress(data: &[u8], compression: Compression) -> io::Result<Vec<u8>> {
         Compression::None => Ok(data.to_vec()),
         Compression::Lz4 => Ok(lz4_flex::block::compress(data)),
         Compression::Zlib => {
-            let mut encoder = flate2::write::ZlibEncoder::new(
-                Vec::new(),
-                flate2::Compression::default(),
-            );
+            let mut encoder =
+                flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
             encoder.write_all(data)?;
             encoder.finish()
         }
@@ -27,13 +25,15 @@ pub fn compress(data: &[u8], compression: Compression) -> io::Result<Vec<u8>> {
     }
 }
 
-pub fn decompress(data: &[u8], compression: Compression, uncompressed_size: usize) -> io::Result<Vec<u8>> {
+pub fn decompress(
+    data: &[u8],
+    compression: Compression,
+    uncompressed_size: usize,
+) -> io::Result<Vec<u8>> {
     match compression {
         Compression::None => Ok(data.to_vec()),
-        Compression::Lz4 => {
-            lz4_flex::block::decompress(data, uncompressed_size)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
-        }
+        Compression::Lz4 => lz4_flex::block::decompress(data, uncompressed_size)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e)),
         Compression::Zlib => {
             use std::io::Read;
             let mut decoder = flate2::read::ZlibDecoder::new(data);
@@ -64,10 +64,12 @@ pub fn process_file(
     let processed = match crypto {
         CryptoType::ChaCha20 => chacha20::encrypt_pack_entry(&compressed, encrypt_info, file_path),
         CryptoType::None => compressed,
-        _ => return Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            format!("crypto {:?} not supported for creation", crypto),
-        )),
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                format!("crypto {:?} not supported for creation", crypto),
+            ));
+        }
     };
 
     let flags = compression as u8 | ((crypto as u8) << 4);
@@ -180,7 +182,12 @@ impl PackGroupBuilder {
     /// Add a file by reading it from a path on disk.
     /// Avoids the caller needing to load the file into memory themselves
     /// (though we still load it here for compression).
-    pub fn add_file_from_path(&mut self, dir_path: &str, file_name: &str, file_path: &Path) -> io::Result<()> {
+    pub fn add_file_from_path(
+        &mut self,
+        dir_path: &str,
+        file_name: &str,
+        file_path: &Path,
+    ) -> io::Result<()> {
         let data = std::fs::read(file_path)?;
         self.add_file(dir_path, file_name, &data)
     }
@@ -195,7 +202,9 @@ impl PackGroupBuilder {
         let size = self.current_chunk_data.len() as u32;
 
         // Write to disk
-        let paz_path = self.output_dir.join(format!("{}.paz", self.current_chunk_id));
+        let paz_path = self
+            .output_dir
+            .join(format!("{}.paz", self.current_chunk_id));
         std::fs::write(&paz_path, &self.current_chunk_data)?;
 
         self.finished_chunks.push(ChunkMeta {
@@ -353,7 +362,10 @@ pub fn extract_file(
         .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", paz_path.display(), e)))?;
 
     // Seek to the file's offset within the chunk
-    std::io::Seek::seek(&mut fh, std::io::SeekFrom::Start(file.file.chunk_offset as u64))?;
+    std::io::Seek::seek(
+        &mut fh,
+        std::io::SeekFrom::Start(file.file.chunk_offset as u64),
+    )?;
 
     // Read the compressed/encrypted data
     let mut raw = vec![0u8; file.file.compressed_size as usize];
@@ -370,10 +382,12 @@ pub fn extract_file(
             chacha20::decrypt_pack_entry(&raw, encrypt_info, &full_path)
         }
         CryptoType::None => raw,
-        other => return Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            format!("crypto {:?} not supported for extraction", other),
-        )),
+        other => {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                format!("crypto {:?} not supported for extraction", other),
+            ));
+        }
     };
 
     // Decompress (partial-compression files not yet supported)
@@ -383,7 +397,11 @@ pub fn extract_file(
             "partial compression extraction not yet implemented",
         ));
     }
-    decompress(&decrypted, file.file.compression, file.file.uncompressed_size as usize)
+    decompress(
+        &decrypted,
+        file.file.compression,
+        file.file.uncompressed_size as usize,
+    )
 }
 
 #[cfg(test)]
@@ -431,9 +449,15 @@ mod tests {
             1_000_000,
         );
 
-        builder.add_file("textures", "test.dds", b"fake texture data").unwrap();
-        builder.add_file("textures", "test2.dds", b"more texture data").unwrap();
-        builder.add_file("models", "mesh.obj", b"fake mesh data").unwrap();
+        builder
+            .add_file("textures", "test.dds", b"fake texture data")
+            .unwrap();
+        builder
+            .add_file("textures", "test2.dds", b"more texture data")
+            .unwrap();
+        builder
+            .add_file("models", "mesh.obj", b"fake mesh data")
+            .unwrap();
 
         let pamt_bytes = builder.finish().unwrap();
 
@@ -494,13 +518,27 @@ mod tests {
         );
 
         builder.add_file("gamedata", "f1.bin", b"d1").unwrap();
-        builder.add_file("gamedata/binary__", "f2.bin", b"d2").unwrap();
-        builder.add_file("gamedata/binary__/client", "f3.bin", b"d3").unwrap();
-        builder.add_file("gamedata/binary__/client/bin", "f4.bin", b"d4").unwrap();
-        builder.add_file("gamedata/binary__/misc", "f5.bin", b"d5").unwrap();
-        builder.add_file("gamedata/binary__/misc/bin", "f6.bin", b"d6").unwrap();
-        builder.add_file("gamedata/binarygimmickchart__", "f7.bin", b"d7").unwrap();
-        builder.add_file("gamedata/binarygimmickchart__/bin", "f8.bin", b"d8").unwrap();
+        builder
+            .add_file("gamedata/binary__", "f2.bin", b"d2")
+            .unwrap();
+        builder
+            .add_file("gamedata/binary__/client", "f3.bin", b"d3")
+            .unwrap();
+        builder
+            .add_file("gamedata/binary__/client/bin", "f4.bin", b"d4")
+            .unwrap();
+        builder
+            .add_file("gamedata/binary__/misc", "f5.bin", b"d5")
+            .unwrap();
+        builder
+            .add_file("gamedata/binary__/misc/bin", "f6.bin", b"d6")
+            .unwrap();
+        builder
+            .add_file("gamedata/binarygimmickchart__", "f7.bin", b"d7")
+            .unwrap();
+        builder
+            .add_file("gamedata/binarygimmickchart__/bin", "f8.bin", b"d8")
+            .unwrap();
 
         let pamt_bytes = builder.finish().unwrap();
         let pamt = PackMeta::parse(&pamt_bytes, None).unwrap();

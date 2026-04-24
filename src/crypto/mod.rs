@@ -1,2 +1,2 @@
-pub mod checksum;
 pub mod chacha20;
+pub mod checksum;

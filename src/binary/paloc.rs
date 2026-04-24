@@ -40,9 +40,7 @@ impl<'a> LocalizationFile<'a> {
     pub fn parse(data: &'a [u8]) -> io::Result<Self> {
         check_remaining(data, 0, 4)?;
         let count_offset = data.len() - 4;
-        let entry_count = u32::from_le_bytes(
-            data[count_offset..].try_into().unwrap(),
-        ) as usize;
+        let entry_count = u32::from_le_bytes(data[count_offset..].try_into().unwrap()) as usize;
 
         let mut offset = 0;
         let mut entries = Vec::with_capacity(entry_count);

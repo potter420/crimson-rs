@@ -1,13 +1,13 @@
 use std::io::{self, Write};
 
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use pyo3::exceptions::PyValueError;
 
 use super::keys::*;
 use crate::binary::*;
-use crate::python_traits::{ToPyValue, WritePyValue, get_field};
 use crate::py_binary_struct;
+use crate::python_traits::{ToPyValue, WritePyValue, get_field};
 
 // ── Simple structs ──────────────────────────────────────────────────────────
 
@@ -250,6 +250,8 @@ py_binary_struct! {
 py_binary_struct! {
     pub struct PatternParamString<'a> {
         pub flag: u8,
+        pub unk_flag_2: u8,
+        pub unk_value: [u32; 2],
         pub param_string: CString<'a>,
     }
 }
@@ -294,8 +296,12 @@ impl<'a> BinaryRead<'a> for SubItem {
             3 => SubItemValue::Character(CharacterKey::read_from(data, offset)?),
             9 => SubItemValue::Gimmick(GimmickInfoKey::read_from(data, offset)?),
             14 => SubItemValue::None,
-            _ => return Err(io::Error::new(io::ErrorKind::InvalidData,
-                format!("unknown SubItem type: {}", type_id))),
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("unknown SubItem type: {}", type_id),
+                ));
+            }
         };
         Ok(SubItem { type_id, value })
     }
@@ -318,8 +324,12 @@ impl<'a> BinaryReadTracked<'a> for SubItem {
             3 => SubItemValue::Character(CharacterKey::read_tracked(data, offset, path, ranges)?),
             9 => SubItemValue::Gimmick(GimmickInfoKey::read_tracked(data, offset, path, ranges)?),
             14 => SubItemValue::None,
-            _ => return Err(io::Error::new(io::ErrorKind::InvalidData,
-                format!("unknown SubItem type: {}", type_id))),
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("unknown SubItem type: {}", type_id),
+                ));
+            }
         };
         pop_path(path, saved);
         Ok(SubItem { type_id, value })
@@ -363,7 +373,12 @@ impl WritePyValue for SubItem {
                 w.extend_from_slice(&v.to_le_bytes());
             }
             14 => {}
-            _ => return Err(PyValueError::new_err(format!("invalid SubItem type_id: {}", type_id))),
+            _ => {
+                return Err(PyValueError::new_err(format!(
+                    "invalid SubItem type_id: {}",
+                    type_id
+                )));
+            }
         }
         Ok(())
     }
@@ -412,10 +427,19 @@ impl<'a> BinaryRead<'a> for SealableItemInfo<'a> {
             2 => SealableValue::String(CString::read_from(data, offset)?),
             3 => SealableValue::Character(CharacterKey::read_from(data, offset)?),
             4 => SealableValue::Tribe(TribeInfoKey::read_from(data, offset)?),
-            _ => return Err(io::Error::new(io::ErrorKind::InvalidData,
-                format!("unknown SealableItemInfo type: {}", type_tag))),
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("unknown SealableItemInfo type: {}", type_tag),
+                ));
+            }
         };
-        Ok(SealableItemInfo { type_tag, item_key, unknown0, value })
+        Ok(SealableItemInfo {
+            type_tag,
+            item_key,
+            unknown0,
+            value,
+        })
     }
 }
 
@@ -445,11 +469,20 @@ impl<'a> BinaryReadTracked<'a> for SealableItemInfo<'a> {
             2 => SealableValue::String(CString::read_tracked(data, offset, path, ranges)?),
             3 => SealableValue::Character(CharacterKey::read_tracked(data, offset, path, ranges)?),
             4 => SealableValue::Tribe(TribeInfoKey::read_tracked(data, offset, path, ranges)?),
-            _ => return Err(io::Error::new(io::ErrorKind::InvalidData,
-                format!("unknown SealableItemInfo type: {}", type_tag))),
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("unknown SealableItemInfo type: {}", type_tag),
+                ));
+            }
         };
         pop_path(path, saved);
-        Ok(SealableItemInfo { type_tag, item_key, unknown0, value })
+        Ok(SealableItemInfo {
+            type_tag,
+            item_key,
+            unknown0,
+            value,
+        })
     }
 }
 
@@ -505,7 +538,12 @@ impl WritePyValue for SealableItemInfo<'_> {
                 w.extend_from_slice(&(s.len() as u32).to_le_bytes());
                 w.extend_from_slice(s.as_bytes());
             }
-            _ => return Err(PyValueError::new_err(format!("invalid sealable type_tag: {}", type_tag))),
+            _ => {
+                return Err(PyValueError::new_err(format!(
+                    "invalid sealable type_tag: {}",
+                    type_tag
+                )));
+            }
         }
         Ok(())
     }
