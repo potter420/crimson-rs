@@ -8,6 +8,7 @@ use super::keys::*;
 use crate::binary::*;
 use crate::py_binary_struct;
 use crate::python_traits::{ToPyValue, WritePyValue, get_field};
+use crate::json_traits::{ToJsonValue, WriteJsonValue};
 
 // ── Simple structs ──────────────────────────────────────────────────────────
 
@@ -384,6 +385,34 @@ impl WritePyValue for SubItem {
     }
 }
 
+impl ToJsonValue for SubItem {
+    fn to_json_value(&self) -> serde_json::Value {
+        let val = match &self.value {
+            SubItemValue::Item(k) => serde_json::json!(k.0),
+            SubItemValue::Character(k) => serde_json::json!(k.0),
+            SubItemValue::Gimmick(k) => serde_json::json!(k.0),
+            SubItemValue::None => serde_json::Value::Null,
+        };
+        serde_json::json!({"type_id": self.type_id, "value": val})
+    }
+}
+
+impl WriteJsonValue for SubItem {
+    fn write_from_json(w: &mut Vec<u8>, val: &serde_json::Value) -> Result<(), String> {
+        let type_id = val.get("type_id").and_then(|v| v.as_u64()).ok_or("missing type_id")? as u8;
+        w.push(type_id);
+        match type_id {
+            0 | 3 | 9 => {
+                let v = val.get("value").and_then(|v| v.as_u64()).ok_or("missing value")? as u32;
+                w.extend_from_slice(&v.to_le_bytes());
+            }
+            14 => {}
+            _ => return Err(format!("invalid SubItem type_id: {}", type_id)),
+        }
+        Ok(())
+    }
+}
+
 // ── DropDefaultData ─────────────────────────────────────────────────────────
 
 py_binary_struct! {
@@ -544,6 +573,54 @@ impl WritePyValue for SealableItemInfo<'_> {
                     type_tag
                 )));
             }
+        }
+        Ok(())
+    }
+}
+
+impl ToJsonValue for SealableItemInfo<'_> {
+    fn to_json_value(&self) -> serde_json::Value {
+        let val = match &self.value {
+            SealableValue::Item(k) => serde_json::json!({"type": "item", "key": k.0}),
+            SealableValue::Gimmick(k) => serde_json::json!({"type": "gimmick", "key": k.0}),
+            SealableValue::String(s) => serde_json::json!({"type": "string", "value": s.data}),
+            SealableValue::Character(k) => serde_json::json!({"type": "character", "key": k.0}),
+            SealableValue::Tribe(k) => serde_json::json!({"type": "tribe", "key": k.0}),
+        };
+        serde_json::json!({
+            "type_tag": self.type_tag,
+            "item_key": self.item_key.0,
+            "unknown0": self.unknown0,
+            "value": val,
+        })
+    }
+}
+
+impl WriteJsonValue for SealableItemInfo<'_> {
+    fn write_from_json(w: &mut Vec<u8>, val: &serde_json::Value) -> Result<(), String> {
+        let type_tag = val.get("type_tag").and_then(|v| v.as_u64()).ok_or("missing type_tag")? as u8;
+        let item_key = val.get("item_key").and_then(|v| v.as_u64()).ok_or("missing item_key")? as u32;
+        let unknown0 = val.get("unknown0").and_then(|v| v.as_u64()).ok_or("missing unknown0")?;
+        w.push(type_tag);
+        w.extend_from_slice(&item_key.to_le_bytes());
+        w.extend_from_slice(&unknown0.to_le_bytes());
+        let inner = val.get("value").ok_or("missing value")?;
+        match type_tag {
+            1 | 2 => {
+                let k = inner.get("key").and_then(|v| v.as_u64()).ok_or("missing key")? as u32;
+                w.extend_from_slice(&k.to_le_bytes());
+            }
+            3 => {
+                let s = inner.get("value").and_then(|v| v.as_str()).ok_or("missing string value")?;
+                let bytes = s.as_bytes();
+                w.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
+                w.extend_from_slice(bytes);
+            }
+            4 | 5 => {
+                let k = inner.get("key").and_then(|v| v.as_u64()).ok_or("missing key")? as u32;
+                w.extend_from_slice(&k.to_le_bytes());
+            }
+            _ => return Err(format!("invalid sealable type_tag: {}", type_tag)),
         }
         Ok(())
     }

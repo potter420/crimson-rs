@@ -206,5 +206,37 @@ macro_rules! py_binary_struct {
                 Self::write_from_py_dict(w, obj.cast::<pyo3::types::PyDict>()?)
             }
         }
+
+        // ── Native JSON (no Python) ──────────────────────────────
+
+        impl $(< $lt >)? $name $(< $lt >)? {
+            pub fn to_json_dict(&self) -> serde_json::Value {
+                use $crate::json_traits::ToJsonValue;
+                let mut map = serde_json::Map::new();
+                $(map.insert(stringify!($field).to_string(), self.$field.to_json_value());)*
+                serde_json::Value::Object(map)
+            }
+
+            pub fn write_from_json_dict(
+                w: &mut Vec<u8>,
+                obj: &serde_json::Value,
+            ) -> Result<(), String> {
+                use $crate::json_traits::{WriteJsonValue, get_json_field};
+                $(<$ty as WriteJsonValue>::write_from_json(w, get_json_field(obj, stringify!($field))?)?;)*
+                Ok(())
+            }
+        }
+
+        impl $(< $lt >)? $crate::json_traits::ToJsonValue for $name $(< $lt >)? {
+            fn to_json_value(&self) -> serde_json::Value {
+                self.to_json_dict()
+            }
+        }
+
+        impl $(< $lt >)? $crate::json_traits::WriteJsonValue for $name $(< $lt >)? {
+            fn write_from_json(w: &mut Vec<u8>, val: &serde_json::Value) -> Result<(), String> {
+                Self::write_from_json_dict(w, val)
+            }
+        }
     };
 }
