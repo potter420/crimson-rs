@@ -1,5 +1,6 @@
 use crate::binary::{BinaryRead, BinaryReadTracked, BinaryWrite, FieldRange};
 use crate::python_traits::{ToPyValue, WritePyValue};
+use crate::json_traits::{ToJsonValue, WriteJsonValue};
 use pyo3::prelude::*;
 use std::io::{self, Write};
 
@@ -42,6 +43,18 @@ macro_rules! define_key {
         impl WritePyValue for $name {
             fn write_from_py(w: &mut Vec<u8>, obj: &Bound<'_, PyAny>) -> PyResult<()> {
                 <$inner as WritePyValue>::write_from_py(w, obj)
+            }
+        }
+
+        impl $crate::json_traits::ToJsonValue for $name {
+            fn to_json_value(&self) -> serde_json::Value {
+                self.0.to_json_value()
+            }
+        }
+
+        impl $crate::json_traits::WriteJsonValue for $name {
+            fn write_from_json(w: &mut Vec<u8>, val: &serde_json::Value) -> Result<(), String> {
+                <$inner as $crate::json_traits::WriteJsonValue>::write_from_json(w, val)
             }
         }
     };
